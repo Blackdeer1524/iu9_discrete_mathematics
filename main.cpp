@@ -20,6 +20,9 @@ auto get_divisors(uint64_t n) -> std::vector<uint64_t> {
 }
 
 auto is_prime(uint64_t item) -> bool {
+    if (item <= 2) {
+        return true;
+    }
     if (item % 2 == 0) {
         return false;
     }
@@ -33,6 +36,7 @@ auto is_prime(uint64_t item) -> bool {
 
 auto quotient_is_prime(uint64_t divident, uint64_t divisor) -> bool {
     auto quotient = divident / divisor;
+    auto test     = get_divisors(quotient);
     return is_prime(quotient);
 }
 
