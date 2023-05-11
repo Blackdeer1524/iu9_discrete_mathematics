@@ -2,38 +2,39 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
-// #include <memory>
+#include <memory>
 #include <ostream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-// НЕЛЬЗЯ ИСПОЛЬЗОВАТЬ УМНЫЕ УКАЗАТЕЛИ :(
-
 class Vertex {
  public:
-    auto unite(Vertex *other) -> void {
+    static auto build() -> std::shared_ptr<Vertex> {
+        auto node     = std::shared_ptr<Vertex>(new Vertex());
+        node->parent_ = node;
+        return node;
+    }
+
+    auto unite(std::shared_ptr<Vertex> other) -> void {
         link(find(), other->find());
     }
 
-    auto find() -> Vertex * {
-        if (this != parent_) {
+    auto find() -> std::shared_ptr<Vertex> {
+        if (this != parent_.get()) {
             parent_ = parent_->find();
         }
         return parent_;
     }
 
+ private:
     Vertex() = default;
 
-    auto initialize() -> void {
-        parent_ = this;
-    }
+    uint64_t                rank_{};
+    std::shared_ptr<Vertex> parent_;
 
- private:
-    uint64_t    rank_{};
-    Vertex     *parent_;
-
-    static auto link(Vertex *x, Vertex *y) -> void {
+    static auto link(std::shared_ptr<Vertex> x, std::shared_ptr<Vertex> y)
+        -> void {
         if (x->rank_ > y->rank_) {
             y->parent_ = x;
             return;
@@ -46,13 +47,15 @@ class Vertex {
 };
 
 struct Edge {
-    Edge(double weight, Vertex *start, Vertex *end)
+    Edge(double                  weight,
+         std::shared_ptr<Vertex> start,
+         std::shared_ptr<Vertex> end)
         : weight_(weight), start_(std::move(start)), end_(std::move(end)) {
     }
 
-    double  weight_;
-    Vertex *start_;
-    Vertex *end_;
+    double                  weight_;
+    std::shared_ptr<Vertex> start_;
+    std::shared_ptr<Vertex> end_;
 };
 
 using Coords = std::pair<int, int>;
@@ -62,32 +65,27 @@ auto main() -> int {
     std::cin >> n;
 
     auto points    = std::vector<Coords>();
-    auto vertecies = std::vector<Vertex>();
+    auto vertecies = std::vector<std::shared_ptr<Vertex>>();
     for (uint64_t i = 0; i < n; ++i) {
         Coords placeholder;
         std::cin >> placeholder.first >> placeholder.second;
         points.push_back(placeholder);
-        vertecies.emplace_back();
-    }
-
-    for (auto &vert : vertecies) {
-        vert.initialize();
+        vertecies.push_back(Vertex::build());
     }
 
     std::vector<Edge> edges;
     for (uint64_t i = 0; i < n; ++i) {
-        auto  first        = points[i];
-        auto *first_vertex = &vertecies[i];
+        auto first        = points[i];
+        auto first_vertex = vertecies[i];
         for (uint64_t j = i + 1; j < n; ++j) {
-            auto  second        = points[j];
-            auto *second_vertex = &vertecies[j];
-            auto  weight =
+            auto second        = points[j];
+            auto second_vertex = vertecies[j];
+            auto weight =
                 std::sqrt(std::pow((first.first - second.first), 2) +
                           std::pow((first.second - second.second), 2));
-            edges.emplace_back(Edge(weight, first_vertex, second_vertex));
+            edges.emplace_back(weight, first_vertex, second_vertex);
         }
     }
-
     std::sort(edges.begin(),
               edges.end(),
               [](const Edge &left, const Edge &right) -> int {
