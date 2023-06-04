@@ -3,4 +3,6 @@
 !.gitignore
 !go.mod
 !README.md
+!main.cpp
+!CMakeLists.txt
 
