@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iterator>
 #include <list>
+#include <optional>
 #include <queue>
 #include <ranges>
 #include <unordered_map>
@@ -19,10 +20,11 @@ struct VertexInfo {
 };
 
 auto bfs(const AdjacencyListT &adj_list, uint64_t start)
-    -> std::vector<uint64_t> {
+    -> std::vector<std::optional<uint64_t>> {
     std::queue<std::pair<uint64_t, uint64_t>> bfs_queue;
     std::vector<bool>                         visited(adj_list.size(), false);
-    std::vector<uint64_t>                     distances(adj_list.size());
+    std::vector<std::optional<uint64_t>>      distances(adj_list.size(),
+                                                   std::nullopt);
 
     bfs_queue.emplace(0, start);
     while (!bfs_queue.empty()) {
@@ -75,8 +77,21 @@ auto eq_dist_helper(uint64_t                     start_vertex,
 auto eq_dist(const AdjacencyListT        &adj_list,
              const std::vector<uint64_t> &support_vertices)
     -> std::vector<uint64_t> {
-    auto initial_distances = bfs(adj_list, support_vertices.at(0));
-    auto valid_vertices    = std::vector<bool>(adj_list.size(), true);
+    auto opt_initial_distances = bfs(adj_list, support_vertices.at(0));
+    if (std::any_of(opt_initial_distances.begin(),
+                    opt_initial_distances.end(),
+                    [](auto item) { return !item.has_value(); })) {
+        return {};
+    }
+    auto initial_distances_view = std::views::transform(
+        opt_initial_distances, [](auto item) { return item.value(); });
+
+    auto initial_distances = std::vector<uint64_t>();
+    std::copy(initial_distances_view.begin(),
+              initial_distances_view.end(),
+              std::back_inserter(initial_distances));
+
+    auto valid_vertices = std::vector<bool>(adj_list.size(), true);
     for (auto start_vertex : support_vertices) {
         eq_dist_helper(
             start_vertex, adj_list, initial_distances, valid_vertices);
