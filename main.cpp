@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <array>
 #include <assert.h>
-#include <concepts>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -14,7 +13,6 @@
 // https://www.youtube.com/watch?v=5EGw4_NKZlY&t=213s
 
 template <typename T = uint64_t>
-    requires std::integral<T> || std::floating_point<T>
 class Matrix {
  public:
     explicit Matrix(uint64_t N, T init_value = {})
@@ -53,7 +51,7 @@ auto a_star(const Matrix<uint64_t> &map) {
         Item(uint64_t                      distance,
              std::pair<uint64_t, uint64_t> vertex,
              uint64_t                      field_size)
-            : distance_(distance), vertex_(std::move(vertex)),
+            : vertex_(std::move(vertex)), distance_(distance),
               field_size_(field_size) {
         }
 
@@ -104,10 +102,10 @@ auto a_star(const Matrix<uint64_t> &map) {
             std::pair<int, int>{ 0,  1}
         };
 
-        for (const auto [row_move, col_move] : moves) {
-            if (row_move == -1 && row == 0 || col_move == -1 && col == 0 ||
-                row_move == 1 && row == map.size() - 1 ||
-                col_move == 1 && col == map.size() - 1) {
+        for (const auto &[row_move, col_move] : moves) {
+            if ((row_move == -1 && row == 0) || (col_move == -1 && col == 0) ||
+                (row_move == 1 && row == map.size() - 1) ||
+                (col_move == 1 && col == map.size() - 1)) {
                 continue;
             }
             const auto neighbour_row = row + row_move;
