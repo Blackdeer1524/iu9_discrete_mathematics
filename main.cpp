@@ -4,7 +4,6 @@
 #include <list>
 #include <numeric>
 #include <ostream>
-#include <sstream>
 #include <vector>
 
 using AdjecencyListT = std::vector<std::list<uint64_t>>;
@@ -82,25 +81,25 @@ auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
 }
 
 auto print_graph(const AdjecencyListT    &adjacency_list,
-                 const std::vector<bool> &is_max_component) -> std::string {
-    auto              adj_list = adjacency_list;
+                 const std::vector<bool> &is_max_component) -> void {
+    auto adj_list = adjacency_list;
 
-    std::stringstream ss;
-    ss << "graph G {" << std::endl;
+    // std::stringstream ss;
+    std::cout << "graph G {" << std::endl;
 
     for (uint64_t vertex = 0; vertex < adj_list.size(); ++vertex) {
         if (is_max_component[vertex]) {
-            ss << vertex << " [color=red];" << std::endl;
+            std::cout << vertex << " [color=red];" << std::endl;
         }
     }
 
     for (uint64_t vertex = 0; vertex < adj_list.size(); ++vertex) {
         for (const auto neighbour : adj_list[vertex]) {
-            ss << vertex << " -- " << neighbour;
+            std::cout << vertex << " -- " << neighbour;
             if (is_max_component[vertex]) {
-                ss << " [color=red]";
+                std::cout << " [color=red]";
             }
-            ss << ';' << std::endl;
+            std::cout << ';' << std::endl;
 
             auto item = std::find(
                 adj_list[neighbour].begin(), adj_list[neighbour].end(), vertex);
@@ -108,8 +107,7 @@ auto print_graph(const AdjecencyListT    &adjacency_list,
         }
     }
 
-    ss << "}";
-    return ss.str();
+    std::cout << "}";
 }
 
 auto main() -> int {
@@ -131,7 +129,5 @@ auto main() -> int {
     }
 
     auto is_max_component = solve(adj_list);
-    auto res              = print_graph(adj_list, is_max_component);
-
-    std::cout << res << std::endl;
+    print_graph(adj_list, is_max_component);
 }
