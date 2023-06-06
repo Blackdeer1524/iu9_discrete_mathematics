@@ -1,12 +1,14 @@
 #include <algorithm>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <iostream>
-#include <list>
+#include <iterator>
 #include <numeric>
 #include <ostream>
 #include <vector>
 
-using AdjecencyListT = std::vector<std::list<uint64_t>>;
+using AdjecencyListT = std::vector<std::vector<uint64_t>>;
 
 std::vector<bool>     visited;
 std::vector<uint64_t> toposorted_vertices;
@@ -23,13 +25,13 @@ auto dfs(const AdjecencyListT &adj_list, const uint64_t start) -> void {
 }
 
 auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
-    const uint64_t      order                          = adj_list.size();
-    uint64_t            max_components_order           = 0;
-    uint64_t            max_components_size            = 0;
-    uint64_t            max_components_min_vertex_name = order;
-    std::vector<bool>   is_max_component;
+    const uint64_t       order                          = adj_list.size();
+    uint64_t             max_components_order           = 0;
+    uint64_t             max_components_size            = 0;
+    uint64_t             max_components_min_vertex_name = order;
+    std::vector<bool>    is_max_component;
 
-    std::list<uint64_t> operation_queue;
+    std::deque<uint64_t> operation_queue;
     for (uint64_t i = 0; i < order; ++i) {
         operation_queue.push_back(i);
     }
@@ -57,6 +59,7 @@ auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
             component.push_back(vertex);
         }
         components_size >>= 1;
+
         if (max_components_order < components_order ||
             (max_components_order == components_order &&
              (max_components_size < components_size ||
@@ -75,7 +78,7 @@ auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
                              [](uint64_t vertex) { return visited[vertex]; });
 
         toposorted_vertices.clear();
-        visited.assign(false, order);
+        visited.assign(order, false);
     }
     return is_max_component;
 }
@@ -88,9 +91,11 @@ auto print_graph(const AdjecencyListT    &adjacency_list,
     std::cout << "graph G {" << std::endl;
 
     for (uint64_t vertex = 0; vertex < adj_list.size(); ++vertex) {
+        std::cout << vertex;
         if (is_max_component[vertex]) {
-            std::cout << vertex << " [color=red];" << std::endl;
+            std::cout << " [color=red];";
         }
+        std::cout << std::endl;
     }
 
     for (uint64_t vertex = 0; vertex < adj_list.size(); ++vertex) {
@@ -101,9 +106,11 @@ auto print_graph(const AdjecencyListT    &adjacency_list,
             }
             std::cout << ';' << std::endl;
 
-            auto item = std::find(
-                adj_list[neighbour].begin(), adj_list[neighbour].end(), vertex);
-            adj_list[neighbour].erase(item);
+            // Удаляем с конца для O(1)
+            auto item = std::find(adj_list[neighbour].rbegin(),
+                                  adj_list[neighbour].rend(),
+                                  vertex);
+            adj_list[neighbour].erase(std::next(item).base());
         }
     }
 
@@ -126,6 +133,11 @@ auto main() -> int {
 
         adj_list[from].push_back(to);
         adj_list[to].push_back(from);
+    }
+
+    for (uint64_t i = 0; i < order; ++i) {
+        std::sort(
+            adj_list[i].begin(), adj_list[i].end(), std::greater<uint64_t>());
     }
 
     auto is_max_component = solve(adj_list);
