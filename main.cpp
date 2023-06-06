@@ -25,38 +25,27 @@ auto dfs(const AdjecencyListT &adj_list, const uint64_t start) -> void {
 }
 
 auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
-    const uint64_t       order                          = adj_list.size();
-    uint64_t             max_components_order           = 0;
-    uint64_t             max_components_size            = 0;
-    uint64_t             max_components_min_vertex_name = order;
-    std::vector<bool>    is_max_component;
+    const uint64_t    order                          = adj_list.size();
+    uint64_t          max_components_order           = 0;
+    uint64_t          max_components_size            = 0;
+    uint64_t          max_components_min_vertex_name = order;
+    std::vector<bool> is_max_component;
 
-    std::deque<uint64_t> operation_queue;
-    for (uint64_t i = 0; i < order; ++i) {
-        operation_queue.push_back(i);
-    }
-
-    while (!operation_queue.empty()) {
-        const auto dfs_start = operation_queue.front();
-        operation_queue.pop_front();
-        if (visited[dfs_start]) {
+    std::vector<bool> seen_vertecies = std::vector<bool>(visited.size(), false);
+    for (uint64_t dfs_start = 0; dfs_start < seen_vertecies.size();
+         ++dfs_start) {
+        if (seen_vertecies[dfs_start]) {
             continue;
         }
         dfs(adj_list, dfs_start);
 
-        uint64_t              components_order           = 0;
-        uint64_t              components_size            = 0;
-        uint64_t              components_min_vertex_name = order;
-        std::vector<uint64_t> component;
-        for (uint64_t vertex = 0; vertex < order; ++vertex) {
-            if (!visited[vertex]) {
-                continue;
-            }
-            components_order++;
+        uint64_t components_size            = 0;
+        uint64_t components_order           = toposorted_vertices.size();
+        uint64_t components_min_vertex_name = order;
+        for (const auto vertex : toposorted_vertices) {
             components_size += adj_list[vertex].size();
             components_min_vertex_name =
                 std::min(components_min_vertex_name, vertex);
-            component.push_back(vertex);
         }
         components_size >>= 1;
 
@@ -72,13 +61,12 @@ auto solve(const AdjecencyListT &adj_list) -> std::vector<bool> {
             is_max_component               = visited;
         }
 
-        // чтобы не ругался clang-tidy на [[nodiscard]]
-        (void)std::remove_if(operation_queue.begin(),
-                             operation_queue.end(),
-                             [](uint64_t vertex) { return visited[vertex]; });
+        for (uint64_t i = 0; i < visited.size(); ++i) {
+            seen_vertecies[i] = visited[i] || seen_vertecies[i];
+        }
 
+        visited.assign(visited.size(), false);
         toposorted_vertices.clear();
-        visited.assign(order, false);
     }
     return is_max_component;
 }
@@ -120,7 +108,6 @@ auto print_graph(const AdjecencyListT    &adjacency_list,
 auto main() -> int {
     uint64_t order;
     uint64_t size;
-
     std::cin >> order >> size;
     visited.resize(order);
 
