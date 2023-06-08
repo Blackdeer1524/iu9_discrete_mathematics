@@ -71,18 +71,19 @@ auto main() -> int {
     std::vector<CrewmemberStatus> base(n, CrewmemberStatus::FREE);
     std::string                   str;
 
-    getline(std::cin, str);
+    getchar();
     for (uint64_t i = 0; i < n; ++i) {
         nodes[i].reserve(n);
-        getline(std::cin, str);
-        for (const auto chr : str) {
-            switch (chr) {
-                case '+':
-                    nodes[i].push_back(true);
-                    break;
-                case '-':
-                    nodes[i].push_back(false);
-                    break;
+        int chr;
+        while ((chr = getchar()) != EOF || chr != '\n') {
+            if (chr == '+') {
+                nodes[i].push_back(true);
+            } else if (chr == '-') {
+                nodes[i].push_back(false);
+            } else if (chr == ' ') {
+                continue;
+            } else {
+                break;
             }
         }
     }
