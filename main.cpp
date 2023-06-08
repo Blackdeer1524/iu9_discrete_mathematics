@@ -15,9 +15,7 @@ std::vector<uint64_t>                      first_group_sizes;
 uint64_t                                   n;
 
 auto make_variants(std::vector<CrewmemberStatus> group,
-                   uint64_t                      universals_n,
                    uint64_t                      first_group_n,
-                   uint64_t                      second_group_n,
                    uint64_t                      current_crewmember_i) -> void {
     if (current_crewmember_i == n) {
         group_variants.push_back(group);
@@ -32,11 +30,7 @@ auto make_variants(std::vector<CrewmemberStatus> group,
     }
     if (i == n) {
         group[current_crewmember_i] = CrewmemberStatus::FREE;
-        make_variants(group,
-                      universals_n + 1,
-                      first_group_n,
-                      second_group_n,
-                      current_crewmember_i + 1);
+        make_variants(group, first_group_n, current_crewmember_i + 1);
         return;
     }
     auto group1 = std::vector<CrewmemberStatus>(group.size());
@@ -64,18 +58,10 @@ auto make_variants(std::vector<CrewmemberStatus> group,
         }
     }
     if (can_add_crewmate_to_first) {
-        make_variants(group1,
-                      universals_n,
-                      first_group_n + 1,
-                      second_group_n,
-                      current_crewmember_i + 1);
+        make_variants(group1, first_group_n + 1, current_crewmember_i + 1);
     }
     if (can_add_crewmate_to_second) {
-        make_variants(group2,
-                      universals_n,
-                      first_group_n,
-                      second_group_n + 1,
-                      current_crewmember_i + 1);
+        make_variants(group2, first_group_n, current_crewmember_i + 1);
     }
 }
 
@@ -101,7 +87,7 @@ auto main() -> int {
         }
     }
 
-    make_variants(base, 0, 0, 0, 0);
+    make_variants(base, 0, 0);
     if (group_variants.empty()) {
         std::cout << "No solution" << std::endl;
         return EXIT_SUCCESS;
