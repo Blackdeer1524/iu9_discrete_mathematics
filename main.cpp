@@ -108,22 +108,24 @@ auto main() -> int {
     std::vector<std::vector<CrewmemberStatus>> variants(group_variants.size());
     for (uint64_t group_i = 0; group_i < group_variants.size(); ++group_i) {
         for (uint64_t crewmate_i = 0; crewmate_i < n; ++crewmate_i) {
-            auto current_group = group_variants.at(group_i);
-            if (current_group[crewmate_i] == CrewmemberStatus::FREE &&
+            const auto &current_group    = group_variants.at(group_i);
+            auto        candidate_status = current_group[crewmate_i];
+
+            if (candidate_status == CrewmemberStatus::FREE &&
                 people_needed_for_first_group[group_i] > 0) {
-                current_group[crewmate_i] = CrewmemberStatus::FIRST_GROUP;
+                candidate_status = CrewmemberStatus::FIRST_GROUP;
                 --people_needed_for_first_group[group_i];
             }
-            if (current_group[crewmate_i] == CrewmemberStatus::FREE &&
+            if (candidate_status == CrewmemberStatus::FREE &&
                 people_needed_for_first_group[group_i] == 0) {
-                current_group[crewmate_i] = CrewmemberStatus::SECOND_GROUP;
+                candidate_status = CrewmemberStatus::SECOND_GROUP;
             }
-            variants[group_i].push_back(current_group[crewmate_i]);
+            variants[group_i].push_back(candidate_status);
         }
     }
 
     auto ans = variants[0];
-    for (const auto &x : group_variants) {
+    for (const auto &x : variants) {
         if (x.size() > ans.size()) {
             continue;
         }
