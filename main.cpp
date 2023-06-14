@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
+#include <limits>
 #include <ostream>
 #include <vector>
 
@@ -124,27 +126,24 @@ auto main() -> int {
         }
     }
 
-    auto ans = variants[0];
+    std::vector<uint64_t> ans(variants[0].size() + 1,
+                              std::numeric_limits<uint64_t>::max());
+
     for (const auto &x : variants) {
-        if (x.size() > ans.size()) {
-            continue;
-        }
+        std::vector<uint64_t> first;
         for (uint64_t i = 0; i < x.size(); ++i) {
-            if (ans[i] > x[i]) {
-                ans = x;
-                break;
+            if (x[i] == CrewmemberStatus::FIRST_GROUP) {
+                first.push_back(i);
             }
-            if (ans[i] < x[i]) {
-                break;
-            }
+        }
+        if (first.size() < ans.size() ||
+            (first.size() == ans.size() && first < ans)) {
+            ans = std::move(first);
         }
     }
 
-    for (uint64_t i = 0; i < ans.size(); ++i) {
-        const auto x = ans[i];
-        if (x == CrewmemberStatus::FIRST_GROUP) {
-            std::cout << i + 1 << ' ';
-        }
+    for (const auto item : ans) {
+        std::cout << item + 1 << ' ';
     }
     std::cout << std::endl;
 }
