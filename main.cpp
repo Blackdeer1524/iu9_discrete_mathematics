@@ -2,13 +2,19 @@
 #include <bits/fs_fwd.h>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <istream>
 #include <iterator>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <queue>
+#include <set>
 #include <stack>
+#include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -19,7 +25,7 @@ struct EdgeInfo {
     uint64_t weight;
 };
 
-using WeightedAdjListT = std::vector<std::vector<EdgeInfo>>;
+using WeightedAdjListT = std::vector<std::set<EdgeInfo>>;
 using AdjListT         = std::vector<std::vector<uint64_t>>;
 
 enum class NodeColor {
@@ -393,5 +399,182 @@ TEST(DijkstraTraverser, PartialDAG) {
     ASSERT_EQ(expected_transposed_graph, actual_transposed_graph);
 }
 
-// auto main() -> int {
-// }
+auto parse_job(std::string &job) -> std::tuple<std::optional<uint64_t>, bool> {
+    bool end_of_chain = false;
+    if (job.at(job.size() - 1) == ';') {
+        job.resize(job.size() - 1);
+        end_of_chain = true;
+    }
+
+    std::optional<uint64_t> cost = std::nullopt;
+    if (job.at(job.size() - 1) == ')') {
+        auto       res      = job.rfind('(', job.size() - 1);
+        const auto str_cost = job.substr(res + 1, job.size() - 1);
+        cost                = std::stoull(str_cost);
+        job.resize(res);
+    }
+    return {cost, end_of_chain};
+}
+
+auto parse_input(std::istream &input)
+    -> std::tuple<std::vector<std::vector<uint64_t>>,
+                  std::unordered_map<uint64_t, uint64_t>,
+                  std::unordered_map<uint64_t, std::string>,
+                  uint64_t> {
+    std::vector<uint64_t>                     chain;
+    std::vector<std::vector<uint64_t>>        chains;
+
+    uint64_t                                  seen_names_count = 0;
+    std::unordered_map<std::string, uint64_t> name2index;
+    std::unordered_map<uint64_t, std::string> index2name;
+    std::unordered_map<uint64_t, uint64_t>    index2cost;
+    while (!input.eof()) {
+        std::string s;
+        input >> s;
+
+        const auto [cost_opt, is_end_of_chain] = parse_job(s);
+        if (cost_opt.has_value()) {
+            const auto cost        = cost_opt.value();
+
+            auto       found_index = name2index.find(s);
+            uint64_t   index;
+            if (found_index == name2index.end()) {
+                index = name2index[s] = seen_names_count++;
+                index2name[index]     = s;
+            } else {
+                index = found_index->second;
+            }
+            index2cost[index] = cost;
+        }
+
+        const auto index = name2index[s];
+        chain.push_back(index);
+        if (is_end_of_chain) {
+            chains.push_back(chain);
+            chain.clear();
+            continue;
+        }
+        input >> s;
+    }
+    chains.emplace_back(std::move(chain));
+    return {chains, index2cost, index2name, seen_names_count};
+}
+
+auto construct_oriented_graph(
+    const std::vector<std::vector<uint64_t>>     &chains,
+    const std::unordered_map<uint64_t, uint64_t> &index2cost,
+    const uint64_t graph_order) -> WeightedAdjListT {
+    WeightedAdjListT graph(graph_order);
+    for (const auto &chain : chains) {
+        if (chain.size() <= 1) {
+            continue;
+        }
+        auto prev_job_iter    = chain.begin();
+        auto current_job_iter = std::next(chain.begin());
+        do {
+            const auto prev_job      = *prev_job_iter;
+            const auto current_job   = *current_job_iter;
+            const auto job_cost_pair = index2cost.find(current_job);
+            assert(job_cost_pair != index2cost.end());
+            const auto job_cost = job_cost_pair->second;
+            graph.at(prev_job).emplace(current_job, job_cost);
+
+            ++prev_job_iter;
+            ++current_job_iter;
+        } while (current_job_iter != chain.end());
+    }
+    return graph;
+}
+
+auto color_red(uint64_t                start,
+               const AdjListT         &transposed_graph,
+               std::vector<NodeColor> &vertex_colors) -> void {
+    vertex_colors.at(start) = NodeColor::RED;
+    for (const auto parent : transposed_graph.at(start)) {
+        color_red(parent, transposed_graph, vertex_colors);
+    }
+}
+
+auto mark_critical_path(const AdjListT         &transposed_graph,
+                        std::vector<NodeColor> &vertex_colors,
+                        const std::vector<std::optional<uint64_t>> &max_costs) {
+
+    uint64_t max_total_cost  = 0;
+    uint64_t max_cost_vertex = 0;
+    for (uint64_t vertex = 0; vertex < max_costs.size(); ++vertex) {
+        const auto vertex_max_cost_opt = max_costs.at(vertex);
+        if (!vertex_max_cost_opt.has_value()) {
+            continue;
+        }
+        const auto vertex_max_cost = vertex_max_cost_opt.value();
+        if (max_total_cost < vertex_max_cost) {
+            max_total_cost  = vertex_max_cost;
+            max_cost_vertex = vertex;
+        }
+    }
+
+    color_red(max_cost_vertex, transposed_graph, vertex_colors);
+}
+
+auto graph2dotlang(const WeightedAdjListT                          &graph,
+                   const std::vector<NodeColor>                    &colors,
+                   const std::unordered_map<uint64_t, uint64_t>    &index2cost,
+                   const std::unordered_map<uint64_t, std::string> &index2name)
+    -> std::string {
+    // stringstream'ом пользоваться почему-то нельзя :(
+    std::string res;
+    res += "digraph {\n";
+    for (uint64_t vertex = 0; vertex < graph.size(); ++vertex) {
+        const auto  cost = index2cost.at(vertex);
+        const auto &name = index2name.at(vertex);
+
+        res += name + "[label = \"" + name + "(" + std::to_string(cost) + ")" +
+               "\"";
+        if (colors.at(vertex) == NodeColor::RED) {
+            res += ", color = red";
+        } else if (colors.at(vertex) == NodeColor::BLUE) {
+            res += ", color = blue";
+        }
+        res += "]\n";
+    }
+
+    for (uint64_t parent = 0; parent < graph.size(); ++parent) {
+        const auto &parent_name = index2name.at(parent);
+        for (const auto [child, _] : graph.at(parent)) {
+            const auto &child_name  = index2name.at(child);
+            res                    += parent_name + " -> " + child_name;
+            if (colors.at(parent) == NodeColor::RED &&
+                colors.at(child) == NodeColor::RED) {
+                res += " [color = red]";
+            } else if (colors.at(parent) == NodeColor::BLUE &&
+                       colors.at(child) == NodeColor::BLUE) {
+                res += " [color = blue]";
+            }
+            res += '\n';
+        }
+    }
+
+    res += '}';
+    return res;
+}
+
+auto main(int argc, char *argv[]) -> int {
+    assert(argc == 2);
+    std::ifstream foo(argv[1]);
+
+    const auto [chains, index2cost, index2name, graph_order] = parse_input(foo);
+
+    const auto graph =
+        construct_oriented_graph(chains, index2cost, graph_order);
+
+    auto       res           = TarjanTraverser::build(graph);
+    auto       vertex_colors = std::get<0>(res);
+    const auto not_bases     = std::get<1>(res);
+
+    const auto [max_costs, trimmed_transposed_graph] =
+        DijkstraTraverser::traverse(graph, vertex_colors, not_bases);
+    mark_critical_path(trimmed_transposed_graph, vertex_colors, max_costs);
+    const auto graph_repr =
+        graph2dotlang(graph, vertex_colors, index2cost, index2name);
+    std::cout << graph_repr << std::endl;
+}
