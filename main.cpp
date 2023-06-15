@@ -33,7 +33,9 @@ class TarjanTraverser {
     static auto build(const WeightedAdjListT &graph)
         -> std::tuple<std::vector<NodeColor>, std::vector<bool>> {
         auto traverser = TarjanTraverser(graph);
-        return {traverser.colors_, traverser.is_not_base_};
+        std::tuple<std::vector<NodeColor>, std::vector<bool>> res{
+            traverser.colors_, traverser.not_base_};
+        return res;
     }
 
  private:
@@ -43,7 +45,7 @@ class TarjanTraverser {
     std::stack<uint64_t>   stack_;
     std::vector<uint64_t>  low_;
     std::vector<uint64_t>  ids_;
-    std::vector<bool>      is_not_base_;
+    std::vector<bool>      not_base_;
     std::vector<NodeColor> colors_;
     uint64_t               timestamp_{0};
 
@@ -53,8 +55,8 @@ class TarjanTraverser {
         visited_[start]  = true;
         low_[start] = ids_[start] = timestamp_++;
         for (const auto child : graph_[start]) {
+            not_base_.at(child.vertex_name) = true;
             if (!visited_[child.vertex_name]) {
-                is_not_base_.at(child.vertex_name) = true;
                 dfs(child.vertex_name);
             }
             if (on_stack_[child.vertex_name]) {
@@ -96,9 +98,9 @@ class TarjanTraverser {
         if (colors_.at(parent) != NodeColor::BLACK) {
             return;
         }
-        colors_.at(parent)      = NodeColor::BLUE;
-        visited_.at(parent)     = true;
-        is_not_base_.at(parent) = true;
+        colors_.at(parent)   = NodeColor::BLUE;
+        visited_.at(parent)  = true;
+        not_base_.at(parent) = true;
         for (const auto child : graph_.at(parent)) {
             color_subgraph_blue(child.vertex_name);
         }
@@ -115,29 +117,33 @@ class TarjanTraverser {
     explicit TarjanTraverser(WeightedAdjListT graph)
         : graph_(std::move(graph)), visited_(graph_.size()),
           on_stack_(graph_.size()), low_(graph_.size()), ids_(graph_.size()),
-          is_not_base_(graph_.size()),
-          colors_(graph_.size(), NodeColor::BLACK) {
+          not_base_(graph_.size()), colors_(graph_.size(), NodeColor::BLACK) {
         traverse();
     }
 };
 
-class AStarTraverser {
+#include <assert.h>
+
+class DijkstraTraverser {
  public:
     static auto traverse(const WeightedAdjListT       &graph,
-                         const std::vector<NodeColor> &colors)
-        -> std::vector<std::optional<uint64_t>> {
-        AStarTraverser traverser(graph, colors);
+                         const std::vector<NodeColor> &colors,
+                         const std::vector<bool>      &not_bases)
+        -> std::tuple<std::vector<std::optional<uint64_t>>, AdjListT> {
+        DijkstraTraverser traverser(graph, colors);
         for (uint64_t i = 0; i < traverser.visited_.size(); ++i) {
-            if (!traverser.visited_.at(i)) {
+            if (/* !traverser.visited_.at(i) &&  */ !not_bases.at(i)) {
+                assert(!traverser.visited_.at(i));
+                traverser.max_distances_.at(i) = 0;
                 traverser.traverse(i);
             }
         }
-        return traverser.max_distances_;
+        return {traverser.max_distances_, traverser.transposed_trimmed_graph_};
     }
 
  private:
-    explicit AStarTraverser(const WeightedAdjListT       &graph,
-                            const std::vector<NodeColor> &colors)
+    explicit DijkstraTraverser(const WeightedAdjListT       &graph,
+                               const std::vector<NodeColor> &colors)
         : graph_(graph), colors_(colors),
           transposed_trimmed_graph_(graph.size()),
           max_distances_(graph_.size()), visited_(graph_.size()){};
@@ -171,15 +177,24 @@ class AStarTraverser {
         pq.emplace(0, start);
         while (!pq.empty()) {
             const auto [total_distance, vertex] = pq.top();
+            pq.pop();
             for (const auto [child, edge_weight] : graph_.at(vertex)) {
+                if (colors_.at(child) == NodeColor::BLUE) {
+                    // Такое возможно когда есть внешнее ребро к синему подграфу
+                    continue;
+                }
+
                 const auto distance_from_current_to_child =
                     total_distance + edge_weight;
                 if (max_distances_.at(child) < distance_from_current_to_child) {
                     max_distances_.at(child) = distance_from_current_to_child;
                     transposed_trimmed_graph_.at(child).clear();
                     pq.emplace(distance_from_current_to_child, child);
+                    transposed_trimmed_graph_.at(child).emplace_back(start);
+                } else if (max_distances_.at(child) ==
+                           distance_from_current_to_child) {
+                    transposed_trimmed_graph_.at(child).emplace_back(start);
                 }
-                transposed_trimmed_graph_.at(child).emplace_back(start);
             }
         }
     }
@@ -194,8 +209,9 @@ TEST(TarjanTraverser, DAG) {
         {{3, 0}},
         {}
     };
-    const auto [actual_colors, actual_is_not_bases] =
-        TarjanTraverser::build(graph);
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
     std::vector<NodeColor> expected_colors{
         NodeColor::BLACK,
         NodeColor::BLACK,
@@ -203,8 +219,12 @@ TEST(TarjanTraverser, DAG) {
         NodeColor::BLACK,
     };
     std::vector<bool> expected_not_bases{false, true, true, true};
+
+    EXPECT_EQ(expected_colors.size(), actual_colors.size());
+    EXPECT_EQ(expected_not_bases.size(), actual_not_bases.size());
+
     EXPECT_EQ(expected_colors, actual_colors);
-    EXPECT_EQ(expected_not_bases, actual_is_not_bases);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
 }
 
 TEST(TarjanTraverser, Cycle) {
@@ -212,29 +232,35 @@ TEST(TarjanTraverser, Cycle) {
         {{1, 0}},
         {{0, 0}},
     };
-    const auto [actual_colors, actual_is_not_bases] =
-        TarjanTraverser::build(graph);
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
     std::vector<NodeColor> expected_colors{
         NodeColor::BLUE,
         NodeColor::BLUE,
     };
     std::vector<bool> expected_not_bases{true, true};
+
+    EXPECT_EQ(expected_colors.size(), actual_colors.size());
+    EXPECT_EQ(expected_not_bases.size(), actual_not_bases.size());
+
     EXPECT_EQ(expected_colors, actual_colors);
-    EXPECT_EQ(expected_not_bases, actual_is_not_bases);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
 }
 
 TEST(TarjanTraverser, SelfLoop) {
     WeightedAdjListT graph{
         {{0, 0}},
     };
-    const auto [actual_colors, actual_is_not_bases] =
-        TarjanTraverser::build(graph);
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
     std::vector<NodeColor> expected_colors{
         NodeColor::BLUE,
     };
     std::vector<bool> expected_not_bases{true};
     EXPECT_EQ(expected_colors, actual_colors);
-    EXPECT_EQ(expected_not_bases, actual_is_not_bases);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
 }
 
 TEST(TarjanTraverser, ColoringFurther) {
@@ -244,8 +270,9 @@ TEST(TarjanTraverser, ColoringFurther) {
         {{3, 0}},
         {}
     };
-    const auto [actual_colors, actual_is_not_bases] =
-        TarjanTraverser::build(graph);
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
     std::vector<NodeColor> expected_colors{
         NodeColor::BLUE,
         NodeColor::BLUE,
@@ -254,7 +281,116 @@ TEST(TarjanTraverser, ColoringFurther) {
     };
     std::vector<bool> expected_not_bases{true, true, true, true};
     EXPECT_EQ(expected_colors, actual_colors);
-    EXPECT_EQ(expected_not_bases, actual_is_not_bases);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(TarjanTraverser, PartialDAG) {
+    WeightedAdjListT graph{
+        {{1, 0}},
+        {{0, 0}, {2, 0}},
+        {{3, 0}},
+        {},
+        {{3, 0}},
+        {{4, 0}},
+        {{4, 0}}
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+    };
+    std::vector<bool> expected_not_bases{
+        true, true, true, true, true, false, false};
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(DijkstraTraverser, DAG) {
+    WeightedAdjListT graph{
+        {{1, 5}, {2, 7}},
+        {{2, 5}},
+        {{3, 3}},
+        {}
+    };
+    const auto res              = TarjanTraverser::build(graph);
+    const auto actual_colors    = std::get<0>(res);
+    const auto actual_not_bases = std::get<1>(res);
+    const auto [actual_distances, transposed_graph] =
+        DijkstraTraverser::traverse(graph, actual_colors, actual_not_bases);
+
+    std::vector<std::optional<uint64_t>> expected_distances{0, 5, 10, 13};
+    ASSERT_EQ(expected_distances, actual_distances);
+}
+
+TEST(DijkstraTraverser, Cycle) {
+    WeightedAdjListT graph{{{1, 2}}, {{0, 3}}};
+    const auto       res              = TarjanTraverser::build(graph);
+    const auto       actual_colors    = std::get<0>(res);
+    const auto       actual_not_bases = std::get<1>(res);
+    const auto [actual_distances, transposed_graph] =
+        DijkstraTraverser::traverse(graph, actual_colors, actual_not_bases);
+
+    std::vector<std::optional<uint64_t>> expected_distances{std::nullopt,
+                                                            std::nullopt};
+    ASSERT_EQ(expected_distances, actual_distances);
+}
+
+TEST(DijkstraTraverser, ColoredSegment) {
+    WeightedAdjListT graph{
+        {{1, 2}},
+        {{0, 3}, {2, 10}},
+        {{3, 1}},
+        {}
+    };
+
+    const auto res              = TarjanTraverser::build(graph);
+    const auto actual_colors    = std::get<0>(res);
+    const auto actual_not_bases = std::get<1>(res);
+    const auto [actual_distances, transposed_graph] =
+        DijkstraTraverser::traverse(graph, actual_colors, actual_not_bases);
+
+    std::vector<std::optional<uint64_t>> expected_distances{
+        std::nullopt, std::nullopt, std::nullopt, std::nullopt};
+    ASSERT_EQ(expected_distances, actual_distances);
+}
+
+TEST(DijkstraTraverser, PartialDAG) {
+    WeightedAdjListT graph{
+        {{1, 2}},
+        {{0, 3}, {2, 10}},
+        {{3, 1}},
+        {},
+        {{3, 3}},
+        {{4, 5}},
+        {{4, 6}}
+    };
+    const auto res              = TarjanTraverser::build(graph);
+    const auto actual_colors    = std::get<0>(res);
+    const auto actual_not_bases = std::get<1>(res);
+    const auto [actual_distances, actual_transposed_graph] =
+        DijkstraTraverser::traverse(graph, actual_colors, actual_not_bases);
+
+    std::vector<std::optional<uint64_t>> expected_distances{
+        std::nullopt, std::nullopt, std::nullopt, std::nullopt, 6, 0, 0};
+    AdjListT expected_transposed_graph{
+        {},
+        {},
+        {},
+        {},
+        {6},
+        {},
+        {},
+    };
+
+    ASSERT_EQ(expected_distances, actual_distances);
+    ASSERT_EQ(expected_transposed_graph, actual_transposed_graph);
 }
 
 // auto main() -> int {
