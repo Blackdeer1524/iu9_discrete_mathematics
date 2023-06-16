@@ -432,11 +432,30 @@ class Parser {
     auto primary() -> void {
         if (match({TokenType::NUMBER})) {
             advance();
-        }
-        if (match({TokenType::L_PARENTHESIS})) {
+        } else if (match({TokenType::L_PARENTHESIS})) {
             advance();
             expression();
             consume({TokenType::R_PARENTHESIS});
+        } else if (match({TokenType::IDENTIFIER})) {
+            const auto &next_token = peek();
+            assert(next_token.value.has_value());
+            const auto &variable_name = next_token.value.value();
+
+            uint64_t    index;
+            if (auto found_iter = var2index_.find(variable_name);
+                found_iter == var2index_.end()) {
+                var2index_.emplace(variable_name, var_count_);
+                index = var_count_++;
+            } else {
+                index = found_iter->second;
+            }
+
+            dependincies_.push_back(index);
+            advance();
+        } else {
+            const auto &next = peek();
+            throw std::runtime_error("Unexpected token type: "s +
+                                     std::to_string(next.type));
         }
         // consume({TokenType::END});
     }
@@ -454,6 +473,23 @@ TEST(Parser, Assignment) {
 
     const std::vector<uint64_t> expected_dependent{0};
     const std::vector<uint64_t> expected_dependencies{};
+
+    EXPECT_EQ(expected_dependent, dependent);
+    EXPECT_EQ(expected_dependencies, dependencies);
+}
+
+TEST(Parser, CompoundAssignment) {
+    const auto                               *program = "a, b = 1, c";
+    const auto                                tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+    ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
+    const auto [dependent, dependencies] = res;
+
+    const std::vector<uint64_t> expected_dependent{0, 1};
+    const std::vector<uint64_t> expected_dependencies{2};
 
     EXPECT_EQ(expected_dependent, dependent);
     EXPECT_EQ(expected_dependencies, dependencies);
