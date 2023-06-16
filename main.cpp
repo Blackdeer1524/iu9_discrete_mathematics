@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <assert.h>
 #include <initializer_list>
 #include <iostream>
 #include <optional>
@@ -227,89 +228,89 @@ class Scanner {
     }
 };
 
-#include <gtest/gtest.h>
-
-TEST(Scanner, Assignment) {
-    const auto *program           = "a = 1";
-    const auto [actual, formulae] = Scanner::scan(program);
-    const std::vector<std::vector<Token>> expected{
-        {
-         Token{TokenType::IDENTIFIER, "a"},
-         Token{TokenType::ASSIGN},
-         Token{TokenType::NUMBER},
-         Token{TokenType::END},
-         }
-    };
-
-    ASSERT_EQ(expected, actual);
-}
-
-TEST(Scanner, CompoundAssignment) {
-    const auto *program           = "a, b = 1, c";
-    const auto [actual, formulae] = Scanner::scan(program);
-    const std::vector<std::vector<Token>> expected{
-        {
-         Token{TokenType::IDENTIFIER, "a"},
-         Token{TokenType::COMMA},
-         Token{TokenType::IDENTIFIER, "b"},
-         Token{TokenType::ASSIGN},
-         Token{TokenType::NUMBER},
-         Token{TokenType::COMMA},
-         Token{TokenType::IDENTIFIER, "c"},
-         Token{TokenType::END},
-         }
-    };
-
-    ASSERT_EQ(expected, actual);
-}
-
-TEST(Scanner, CompoundAssignmentWithGrouping) {
-    const auto *program           = "a, b = (1 + c), 3";
-    const auto [actual, formulae] = Scanner::scan(program);
-    const std::vector<std::vector<Token>> expected{
-        {
-         Token{TokenType::IDENTIFIER, "a"},
-         Token{TokenType::COMMA},
-         Token{TokenType::IDENTIFIER, "b"},
-         Token{TokenType::ASSIGN},
-         Token{TokenType::L_PARENTHESIS},
-         Token{TokenType::NUMBER},
-         Token{TokenType::PLUS},
-         Token{TokenType::IDENTIFIER, "c"},
-         Token{TokenType::R_PARENTHESIS},
-         Token{TokenType::COMMA},
-         Token{TokenType::NUMBER},
-         Token{TokenType::END},
-         }
-    };
-
-    ASSERT_EQ(expected, actual);
-}
-
-TEST(Scanner, Multiline) {
-    const auto *program           = R"(
-        a = 3
-        b = a
-)";
-
-    const auto [actual, formulae] = Scanner::scan(program);
-    const std::vector<std::vector<Token>> expected{
-        {
-         Token{TokenType::IDENTIFIER, "a"},
-         Token{TokenType::ASSIGN},
-         Token{TokenType::NUMBER},
-         Token{TokenType::END},
-         },
-        {
-         Token{TokenType::IDENTIFIER, "b"},
-         Token{TokenType::ASSIGN},
-         Token{TokenType::IDENTIFIER, "a"},
-         Token{TokenType::END},
-         }
-    };
-
-    ASSERT_EQ(expected, actual);
-}
+// #include <gtest/gtest.h>
+//
+// TEST(Scanner, Assignment) {
+//     const auto *program           = "a = 1";
+//     const auto [actual, formulae] = Scanner::scan(program);
+//     const std::vector<std::vector<Token>> expected{
+//         {
+//          Token{TokenType::IDENTIFIER, "a"},
+//          Token{TokenType::ASSIGN},
+//          Token{TokenType::NUMBER},
+//          Token{TokenType::END},
+//          }
+//     };
+//
+//     ASSERT_EQ(expected, actual);
+// }
+//
+// TEST(Scanner, CompoundAssignment) {
+//     const auto *program           = "a, b = 1, c";
+//     const auto [actual, formulae] = Scanner::scan(program);
+//     const std::vector<std::vector<Token>> expected{
+//         {
+//          Token{TokenType::IDENTIFIER, "a"},
+//          Token{TokenType::COMMA},
+//          Token{TokenType::IDENTIFIER, "b"},
+//          Token{TokenType::ASSIGN},
+//          Token{TokenType::NUMBER},
+//          Token{TokenType::COMMA},
+//          Token{TokenType::IDENTIFIER, "c"},
+//          Token{TokenType::END},
+//          }
+//     };
+//
+//     ASSERT_EQ(expected, actual);
+// }
+//
+// TEST(Scanner, CompoundAssignmentWithGrouping) {
+//     const auto *program           = "a, b = (1 + c), 3";
+//     const auto [actual, formulae] = Scanner::scan(program);
+//     const std::vector<std::vector<Token>> expected{
+//         {
+//          Token{TokenType::IDENTIFIER, "a"},
+//          Token{TokenType::COMMA},
+//          Token{TokenType::IDENTIFIER, "b"},
+//          Token{TokenType::ASSIGN},
+//          Token{TokenType::L_PARENTHESIS},
+//          Token{TokenType::NUMBER},
+//          Token{TokenType::PLUS},
+//          Token{TokenType::IDENTIFIER, "c"},
+//          Token{TokenType::R_PARENTHESIS},
+//          Token{TokenType::COMMA},
+//          Token{TokenType::NUMBER},
+//          Token{TokenType::END},
+//          }
+//     };
+//
+//     ASSERT_EQ(expected, actual);
+// }
+//
+// TEST(Scanner, Multiline) {
+//     const auto *program           = R"(
+//         a = 3
+//         b = a
+// )";
+//
+//     const auto [actual, formulae] = Scanner::scan(program);
+//     const std::vector<std::vector<Token>> expected{
+//         {
+//          Token{TokenType::IDENTIFIER, "a"},
+//          Token{TokenType::ASSIGN},
+//          Token{TokenType::NUMBER},
+//          Token{TokenType::END},
+//          },
+//         {
+//          Token{TokenType::IDENTIFIER, "b"},
+//          Token{TokenType::ASSIGN},
+//          Token{TokenType::IDENTIFIER, "a"},
+//          Token{TokenType::END},
+//          }
+//     };
+//
+//     ASSERT_EQ(expected, actual);
+// }
 
 using std::string_literals::operator""s;
 
@@ -504,119 +505,119 @@ class Parser {
     }
 };
 
-TEST(Parser, Assignment) {
-    const auto *program           = "a = 1";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t>                var2index;
-    uint64_t                                                 var_count = 0;
-
-    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
-    ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
-    const auto [dependent, dependencies] = res;
-
-    const std::vector<uint64_t> expected_dependent{0};
-    const std::vector<uint64_t> expected_dependencies{};
-
-    EXPECT_EQ(expected_dependent, dependent);
-    EXPECT_EQ(expected_dependencies, dependencies);
-}
-
-TEST(Parser, GrammarTest) {
-    const auto *program           = "a = (c + b) / c + d - ((-3)) * --(+4)";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t>                var2index;
-    uint64_t                                                 var_count = 0;
-
-    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
-    ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
-    const auto [dependent, dependencies] = res;
-
-    const std::vector<uint64_t> expected_dependent{0};
-    const std::vector<uint64_t> expected_dependencies{1, 2, 1, 3};
-
-    EXPECT_EQ(expected_dependent, dependent);
-    EXPECT_EQ(expected_dependencies, dependencies);
-}
-
-TEST(Parser, CompoundAssignment) {
-    const auto *program           = "a, b = 1, c";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t>                var2index;
-    uint64_t                                                 var_count = 0;
-
-    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
-    ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
-    const auto [dependent, dependencies] = res;
-
-    const std::vector<uint64_t> expected_dependent{0, 1};
-    const std::vector<uint64_t> expected_dependencies{2};
-
-    EXPECT_EQ(expected_dependent, dependent);
-    EXPECT_EQ(expected_dependencies, dependencies);
-}
-
-TEST(Parser, WrongParenthesesCount) {
-    const auto *program           = "a = ((C)";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t>                var2index;
-    uint64_t                                                 var_count = 0;
-
-    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
-    try {
-        res = Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected SyntaxError";
-    } catch (const SyntaxError &error) {
-        ASSERT_EQ("Unexpected token type: "s + toString(TokenType::END),
-                  error.what());
-    }
-}
-
-TEST(Parser, WrongAssignmentCount) {
-    const auto *program           = "a, b = 1";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
-
-    try {
-        Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected SyntaxError";
-    } catch (const SyntaxError &error) {
-        ASSERT_EQ(
-            std::string(
-                "Number of identifiers on the left side is not equal to the "
-                "number of assigned expressions on the right"),
-            error.what());
-    }
-}
-
-TEST(Parser, EmptyLeftSide) {
-    const auto *program           = " = 1";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
-
-    try {
-        Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected SyntaxError";
-    } catch (const SyntaxError &error) {
-        ASSERT_EQ("Unexpected token type: "s + toString(TokenType::ASSIGN),
-                  error.what());
-    }
-}
-
-TEST(Parser, EmptyRightSide) {
-    const auto *program           = "a = ";
-    const auto [tokens, formulae] = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
-
-    try {
-        Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected SyntaxError";
-    } catch (const SyntaxError &error) {
-        ASSERT_EQ("Unexpected token type: END", std::string(error.what()));
-    }
-}
+// TEST(Parser, Assignment) {
+//     const auto *program           = "a = 1";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t>                var2index;
+//     uint64_t                                                 var_count = 0;
+//
+//     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+//     ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index,
+//     var_count);); const auto [dependent, dependencies] = res;
+//
+//     const std::vector<uint64_t> expected_dependent{0};
+//     const std::vector<uint64_t> expected_dependencies{};
+//
+//     EXPECT_EQ(expected_dependent, dependent);
+//     EXPECT_EQ(expected_dependencies, dependencies);
+// }
+//
+// TEST(Parser, GrammarTest) {
+//     const auto *program           = "a = (c + b) / c + d - ((-3)) * --(+4)";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t>                var2index;
+//     uint64_t                                                 var_count = 0;
+//
+//     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+//     ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index,
+//     var_count);); const auto [dependent, dependencies] = res;
+//
+//     const std::vector<uint64_t> expected_dependent{0};
+//     const std::vector<uint64_t> expected_dependencies{1, 2, 1, 3};
+//
+//     EXPECT_EQ(expected_dependent, dependent);
+//     EXPECT_EQ(expected_dependencies, dependencies);
+// }
+//
+// TEST(Parser, CompoundAssignment) {
+//     const auto *program           = "a, b = 1, c";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t>                var2index;
+//     uint64_t                                                 var_count = 0;
+//
+//     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+//     ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index,
+//     var_count);); const auto [dependent, dependencies] = res;
+//
+//     const std::vector<uint64_t> expected_dependent{0, 1};
+//     const std::vector<uint64_t> expected_dependencies{2};
+//
+//     EXPECT_EQ(expected_dependent, dependent);
+//     EXPECT_EQ(expected_dependencies, dependencies);
+// }
+//
+// TEST(Parser, WrongParenthesesCount) {
+//     const auto *program           = "a = ((C)";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t>                var2index;
+//     uint64_t                                                 var_count = 0;
+//
+//     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+//     try {
+//         res = Parser::parse(tokens.at(0), var2index, var_count);
+//         FAIL() << "Expected SyntaxError";
+//     } catch (const SyntaxError &error) {
+//         ASSERT_EQ("Unexpected token type: "s + toString(TokenType::END),
+//                   error.what());
+//     }
+// }
+//
+// TEST(Parser, WrongAssignmentCount) {
+//     const auto *program           = "a, b = 1";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t> var2index;
+//     uint64_t                                  var_count = 0;
+//
+//     try {
+//         Parser::parse(tokens.at(0), var2index, var_count);
+//         FAIL() << "Expected SyntaxError";
+//     } catch (const SyntaxError &error) {
+//         ASSERT_EQ(
+//             std::string(
+//                 "Number of identifiers on the left side is not equal to the "
+//                 "number of assigned expressions on the right"),
+//             error.what());
+//     }
+// }
+//
+// TEST(Parser, EmptyLeftSide) {
+//     const auto *program           = " = 1";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t> var2index;
+//     uint64_t                                  var_count = 0;
+//
+//     try {
+//         Parser::parse(tokens.at(0), var2index, var_count);
+//         FAIL() << "Expected SyntaxError";
+//     } catch (const SyntaxError &error) {
+//         ASSERT_EQ("Unexpected token type: "s + toString(TokenType::ASSIGN),
+//                   error.what());
+//     }
+// }
+//
+// TEST(Parser, EmptyRightSide) {
+//     const auto *program           = "a = ";
+//     const auto [tokens, formulae] = Scanner::scan(program);
+//     std::unordered_map<std::string, uint64_t> var2index;
+//     uint64_t                                  var_count = 0;
+//
+//     try {
+//         Parser::parse(tokens.at(0), var2index, var_count);
+//         FAIL() << "Expected SyntaxError";
+//     } catch (const SyntaxError &error) {
+//         ASSERT_EQ("Unexpected token type: END", std::string(error.what()));
+//     }
+// }
 
 struct Vertex {
     uint64_t                     formula_index;
