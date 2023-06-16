@@ -1,17 +1,10 @@
 #include <algorithm>
-#include <cstdint>
-#include <cstdlib>
 #include <iostream>
-#include <limits>
 #include <map>
 #include <optional>
 #include <queue>
-#include <set>
 #include <stack>
-#include <string>
-#include <tuple>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 // https://www.youtube.com/watch?v=wUgWX0nc4NY
@@ -480,7 +473,6 @@ auto construct_oriented_graph(
             const auto current_job = *current_job_iter;
 
             const auto job_cost    = index2cost.at(current_job);
-            // graph.at(prev_job).insert({current_job, job_cost});
             graph.at(prev_job).push_back({current_job, job_cost});
 
             ++prev_job_iter;
