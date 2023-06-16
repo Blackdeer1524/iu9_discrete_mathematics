@@ -21,7 +21,7 @@ auto split(const std::string &text, char sep) -> std::vector<std::string> {
     uint64_t                 end   = 0;
     while ((end = text.find(sep, start)) != std::string::npos) {
         tokens.push_back(text.substr(start, end - start));
-        start = end + 1;
+        start = end + 2;
     }
     tokens.push_back(text.substr(start));
     return tokens;
@@ -280,8 +280,10 @@ TEST(Scanner, Multiline) {
 
 using std::string_literals::operator""s;
 
+// Книжка по интерпретаторам для референса
 // https://craftinginterpreters.com/
-/*
+//
+/* Хоть нам и не нужна приоритетность операций. Но почему нет
  * STATEMENT = IDENTIFIER ("," IDENTIFIER)* "=" EXPRESSION ("," EXPRESSION)*\n
  * EXPRESSION = FACTOR (("+"|"-") FACTOR)*
  * FACTOR = UNARY (("*" | "/") UNARY)*
@@ -316,11 +318,14 @@ class Parser {
     std::vector<uint64_t>                      dependent_;
     std::vector<uint64_t>                      dependincies_;
 
-    auto                                       peek() -> const Token                                       &{
+    // clang-format off
+    auto peek() -> const Token &{
         return tokens_.at(index_);
     }
 
-    auto advance() -> void {
+    // clang-format on
+
+    auto                                       advance() -> void {
         ++index_;
     }
 
@@ -341,7 +346,7 @@ class Parser {
         }
         const auto &next_token = peek();
         throw std::runtime_error("Unexpected token type: "s +
-                                 std::to_string(next_token.type));
+                                 toString(next_token.type));
     }
 
     auto at_end() -> bool {
@@ -377,7 +382,13 @@ class Parser {
 
                 dependent_.push_back(index);
                 advance();
-            } else if (match({COMMA})) {
+            } else {
+                const auto &next_token = peek();
+                throw std::runtime_error("Unexpected token type: "s +
+                                         toString(next_token.type));
+            }
+
+            if (match({COMMA})) {
                 advance();
             } else if (match({ASSIGN})) {
                 advance();
@@ -385,7 +396,7 @@ class Parser {
             } else {
                 const auto &next_token = peek();
                 throw std::runtime_error("Unexpected token type: "s +
-                                         std::to_string(next_token.type));
+                                         toString(next_token.type));
             }
         }
         return dependent_.size();
@@ -455,7 +466,7 @@ class Parser {
         } else {
             const auto &next = peek();
             throw std::runtime_error("Unexpected token type: "s +
-                                     std::to_string(next.type));
+                                     toString(next.type));
         }
         // consume({TokenType::END});
     }
@@ -478,6 +489,23 @@ TEST(Parser, Assignment) {
     EXPECT_EQ(expected_dependencies, dependencies);
 }
 
+TEST(Parser, GrammarTest) {
+    const auto *program = "a = (c + b) / c + d - ((-3)) * --(+4)";
+    const auto  tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t>                var2index;
+    uint64_t                                                 var_count = 0;
+
+    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+    ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
+    const auto [dependent, dependencies] = res;
+
+    const std::vector<uint64_t> expected_dependent{0};
+    const std::vector<uint64_t> expected_dependencies{1, 2, 1, 3};
+
+    EXPECT_EQ(expected_dependent, dependent);
+    EXPECT_EQ(expected_dependencies, dependencies);
+}
+
 TEST(Parser, CompoundAssignment) {
     const auto                               *program = "a, b = 1, c";
     const auto                                tokens  = Scanner::scan(program);
@@ -493,6 +521,69 @@ TEST(Parser, CompoundAssignment) {
 
     EXPECT_EQ(expected_dependent, dependent);
     EXPECT_EQ(expected_dependencies, dependencies);
+}
+
+TEST(Parser, WrongParenthesesCount) {
+    const auto                               *program = "a = ((C)";
+    const auto                                tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
+    try {
+        res = Parser::parse(tokens.at(0), var2index, var_count);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error &error) {
+        ASSERT_EQ("Unexpected token type: "s + toString(TokenType::END),
+                  error.what());
+    }
+}
+
+TEST(Parser, WrongAssignmentCount) {
+    const auto                               *program = "a, b = 1";
+    const auto                                tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    try {
+        Parser::parse(tokens.at(0), var2index, var_count);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error &error) {
+        ASSERT_EQ(
+            std::string(
+                "Number of identifiers on the left side is not equal to the "
+                "number of assigned expressions on the right"),
+            error.what());
+    }
+}
+
+TEST(Parser, EmptyLeftSide) {
+    const auto                               *program = " = 1";
+    const auto                                tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    try {
+        Parser::parse(tokens.at(0), var2index, var_count);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error &error) {
+        ASSERT_EQ("Unexpected token type: "s + toString(TokenType::ASSIGN),
+                  error.what());
+    }
+}
+
+TEST(Parser, EmptyRightSide) {
+    const auto                               *program = "a = ";
+    const auto                                tokens  = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    try {
+        Parser::parse(tokens.at(0), var2index, var_count);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error &error) {
+        ASSERT_EQ("Unexpected token type: END", std::string(error.what()));
+    }
 }
 
 // auto main() -> int {
