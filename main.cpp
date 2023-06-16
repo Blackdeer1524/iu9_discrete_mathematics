@@ -94,6 +94,14 @@ class Scanner {
                     statement_tokens_.emplace_back(TokenType::MULT);
                     advance();
                     break;
+                case '(':
+                    statement_tokens_.emplace_back(TokenType::L_PARENTHESIS);
+                    advance();
+                    break;
+                case ')':
+                    statement_tokens_.emplace_back(TokenType::R_PARENTHESIS);
+                    advance();
+                    break;
                 case '=':
                     statement_tokens_.emplace_back(TokenType::ASSIGN);
                     advance();
@@ -188,6 +196,29 @@ TEST(Scanner, CompoundAssignment) {
          Token{TokenType::NUMBER},
          Token{TokenType::COMMA},
          Token{TokenType::IDENTIFIER, "c"},
+         }
+    };
+
+    ASSERT_EQ(expected, actual);
+}
+
+TEST(Scanner, CompoundAssignmentWithGrouping) {
+    const auto                           *program = "a, b = (1 + c), 3";
+
+    const auto                            actual  = Scanner(program).scan();
+    const std::vector<std::vector<Token>> expected{
+        {
+         Token{TokenType::IDENTIFIER, "a"},
+         Token{TokenType::COMMA},
+         Token{TokenType::IDENTIFIER, "b"},
+         Token{TokenType::ASSIGN},
+         Token{TokenType::L_PARENTHESIS},
+         Token{TokenType::NUMBER},
+         Token{TokenType::PLUS},
+         Token{TokenType::IDENTIFIER, "c"},
+         Token{TokenType::R_PARENTHESIS},
+         Token{TokenType::COMMA},
+         Token{TokenType::NUMBER},
          }
     };
 
