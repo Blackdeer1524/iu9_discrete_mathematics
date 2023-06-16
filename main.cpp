@@ -71,8 +71,11 @@ class Scanner {
                     advance();
                     break;
                 case '\n':
-                    statements_.push_back(statement_tokens_);
-                    statement_tokens_.clear();
+                    if (!statement_tokens_.empty()) {
+                        statements_.push_back(statement_tokens_);
+                        statement_tokens_.clear();
+                    }
+                    advance();
                     break;
                 case ',':
                     statement_tokens_.emplace_back(TokenType::COMMA);
@@ -219,6 +222,30 @@ TEST(Scanner, CompoundAssignmentWithGrouping) {
          Token{TokenType::R_PARENTHESIS},
          Token{TokenType::COMMA},
          Token{TokenType::NUMBER},
+         }
+    };
+
+    ASSERT_EQ(expected, actual);
+}
+
+TEST(Scanner, Multiline) {
+    const auto                           *program = R"(
+        a = 3
+        b = a
+)";
+
+    const auto                            actual  = Scanner(program).scan();
+    const std::vector<std::vector<Token>> expected{
+        {
+         Token{TokenType::IDENTIFIER, "a"},
+         Token{TokenType::ASSIGN},
+         Token{TokenType::NUMBER},
+         },
+        {
+         Token{TokenType::IDENTIFIER, "b"},
+         Token{TokenType::ASSIGN},
+         Token{TokenType::IDENTIFIER, "a"},
+
          }
     };
 
