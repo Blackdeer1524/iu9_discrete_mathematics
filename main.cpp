@@ -1,17 +1,8 @@
 #include <algorithm>
-#include <cctype>
-#include <cstdint>
-#include <cstdlib>
-#include <fstream>
-#include <functional>
 #include <initializer_list>
 #include <iostream>
-#include <iterator>
 #include <optional>
-#include <set>
-#include <stdexcept>
 #include <string>
-#include <system_error>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -628,10 +619,10 @@ TEST(Parser, EmptyRightSide) {
 }
 
 struct Vertex {
-    uint64_t              formula_index;
-    std::set<uint64_t>    next;
-    std::set<uint64_t>    parents;
-    std::vector<uint64_t> dependencies;
+    uint64_t                     formula_index;
+    std::unordered_set<uint64_t> next;
+    std::unordered_set<uint64_t> parents;
+    std::vector<uint64_t>        dependencies;
 };
 
 auto produce_graph(const std::string &program) -> std::
