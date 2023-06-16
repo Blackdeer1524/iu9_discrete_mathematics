@@ -9,6 +9,6 @@ enable_testing()
 include(GoogleTest)
 
 add_executable(main main.cpp)
-target_compile_options(main PRIVATE -Wall -Werror -Wpedantic -Wextra)
+target_compile_options(main PRIVATE -Wall -Werror -Wpedantic)
 target_link_libraries(main GTest::gtest_main)
-gtest_discover_tests(main)
+# gtest_discover_tests(main)

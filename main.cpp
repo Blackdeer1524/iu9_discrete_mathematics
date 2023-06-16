@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
@@ -10,12 +13,42 @@
 #include <string>
 #include <system_error>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+class SyntaxError : public std::runtime_error {
+ public:
+    explicit SyntaxError(const std::string &message)
+        : std::runtime_error(message) {
+    }
+
+    [[nodiscard]] auto what() const noexcept -> const char * override {
+        return what_message.c_str();
+    }
+
+ private:
+    std::string what_message;
+};
+
+class CycleError : public std::runtime_error {
+ public:
+    explicit CycleError(const std::string &message)
+        : std::runtime_error(message) {
+    }
+
+    [[nodiscard]] auto what() const noexcept -> const char * override {
+        return what_message.c_str();
+    }
+
+ private:
+    std::string what_message;
+};
 
 // Чтобы получить из enum строки
 // https://stackoverflow.com/a/9150779
 auto split(const std::string &text, char sep) -> std::vector<std::string> {
+
     std::vector<std::string> tokens;
     uint64_t                 start = 0;
     uint64_t                 end   = 0;
@@ -79,14 +112,17 @@ using std::literals::operator""s;
 class Scanner {
  public:
     static auto scan(const std::string &program) noexcept(false)
-        -> std::vector<std::vector<Token>> {
-        Scanner    scanner(program);
-        const auto res = scanner.scan();
-        return res;
+        -> std::tuple<std::vector<std::vector<Token>>,
+                      std::vector<std::string>> {
+        Scanner scanner(program);
+        auto [statements, formulae] = scanner.scan();
+        return {statements, formulae};
     }
 
  private:
     uint64_t                        index_{0};
+
+    std::vector<std::string>        formulae_;
     std::vector<Token>              statement_tokens_;
     std::vector<std::vector<Token>> statements_;
     const std::string              &program_;
@@ -94,7 +130,9 @@ class Scanner {
     explicit Scanner(const std::string &program) : program_(program) {
     }
 
-    auto scan() noexcept(false) -> std::vector<std::vector<Token>> {
+    auto scan() noexcept(false) -> std::tuple<std::vector<std::vector<Token>>,
+                                              std::vector<std::string>> {
+        uint64_t start = 0;
         while (!at_end()) {
             const auto c = peek();
             switch (c) {
@@ -105,6 +143,9 @@ class Scanner {
                     if (!statement_tokens_.empty()) {
                         statement_tokens_.emplace_back(TokenType::END);
                         statements_.push_back(statement_tokens_);
+                        formulae_.push_back(
+                            program_.substr(start, index_ - start));
+                        start = index_ + 1;
                         statement_tokens_.clear();
                     }
                     advance();
@@ -147,17 +188,18 @@ class Scanner {
                     } else if (isalpha(c)) {
                         identifier();
                     } else {
-                        throw std::runtime_error("Unexpected character: "s + c);
+                        throw SyntaxError("Unexpected character: "s + c);
                     }
                     break;
             }
         }
         if (!statement_tokens_.empty()) {
             statement_tokens_.emplace_back(TokenType::END);
+            formulae_.push_back(program_.substr(start, index_ - start));
             statements_.push_back(statement_tokens_);
             statement_tokens_.clear();
         }
-        return statements_;
+        return {statements_, formulae_};
     }
 
     auto at_end() -> bool {
@@ -197,8 +239,8 @@ class Scanner {
 #include <gtest/gtest.h>
 
 TEST(Scanner, Assignment) {
-    const auto                           *program = "a = 1";
-    const auto                            actual  = Scanner::scan(program);
+    const auto *program           = "a = 1";
+    const auto [actual, formulae] = Scanner::scan(program);
     const std::vector<std::vector<Token>> expected{
         {
          Token{TokenType::IDENTIFIER, "a"},
@@ -212,8 +254,8 @@ TEST(Scanner, Assignment) {
 }
 
 TEST(Scanner, CompoundAssignment) {
-    const auto                           *program = "a, b = 1, c";
-    const auto                            actual  = Scanner::scan(program);
+    const auto *program           = "a, b = 1, c";
+    const auto [actual, formulae] = Scanner::scan(program);
     const std::vector<std::vector<Token>> expected{
         {
          Token{TokenType::IDENTIFIER, "a"},
@@ -231,8 +273,8 @@ TEST(Scanner, CompoundAssignment) {
 }
 
 TEST(Scanner, CompoundAssignmentWithGrouping) {
-    const auto                           *program = "a, b = (1 + c), 3";
-    const auto                            actual  = Scanner::scan(program);
+    const auto *program           = "a, b = (1 + c), 3";
+    const auto [actual, formulae] = Scanner::scan(program);
     const std::vector<std::vector<Token>> expected{
         {
          Token{TokenType::IDENTIFIER, "a"},
@@ -254,12 +296,12 @@ TEST(Scanner, CompoundAssignmentWithGrouping) {
 }
 
 TEST(Scanner, Multiline) {
-    const auto                           *program = R"(
+    const auto *program           = R"(
         a = 3
         b = a
 )";
 
-    const auto                            actual  = Scanner::scan(program);
+    const auto [actual, formulae] = Scanner::scan(program);
     const std::vector<std::vector<Token>> expected{
         {
          Token{TokenType::IDENTIFIER, "a"},
@@ -345,8 +387,8 @@ class Parser {
             return;
         }
         const auto &next_token = peek();
-        throw std::runtime_error("Unexpected token type: "s +
-                                 toString(next_token.type));
+        throw SyntaxError("Unexpected token type: "s +
+                          toString(next_token.type));
     }
 
     auto at_end() -> bool {
@@ -358,7 +400,7 @@ class Parser {
         const auto right_count = count_right();
 
         if (left_count != right_count) {
-            throw std::runtime_error(
+            throw SyntaxError(
                 "Number of identifiers on the left side is not equal to the "
                 "number of assigned expressions on the right");
         }
@@ -384,8 +426,8 @@ class Parser {
                 advance();
             } else {
                 const auto &next_token = peek();
-                throw std::runtime_error("Unexpected token type: "s +
-                                         toString(next_token.type));
+                throw SyntaxError("Unexpected token type: "s +
+                                  toString(next_token.type));
             }
 
             if (match({COMMA})) {
@@ -395,8 +437,8 @@ class Parser {
                 break;
             } else {
                 const auto &next_token = peek();
-                throw std::runtime_error("Unexpected token type: "s +
-                                         toString(next_token.type));
+                throw SyntaxError("Unexpected token type: "s +
+                                  toString(next_token.type));
             }
         }
         return dependent_.size();
@@ -465,18 +507,17 @@ class Parser {
             advance();
         } else {
             const auto &next = peek();
-            throw std::runtime_error("Unexpected token type: "s +
-                                     toString(next.type));
+            throw SyntaxError("Unexpected token type: "s + toString(next.type));
         }
         // consume({TokenType::END});
     }
 };
 
 TEST(Parser, Assignment) {
-    const auto                               *program = "a = 1";
-    const auto                                tokens  = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
+    const auto *program           = "a = 1";
+    const auto [tokens, formulae] = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t>                var2index;
+    uint64_t                                                 var_count = 0;
 
     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
     ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
@@ -490,8 +531,8 @@ TEST(Parser, Assignment) {
 }
 
 TEST(Parser, GrammarTest) {
-    const auto *program = "a = (c + b) / c + d - ((-3)) * --(+4)";
-    const auto  tokens  = Scanner::scan(program);
+    const auto *program           = "a = (c + b) / c + d - ((-3)) * --(+4)";
+    const auto [tokens, formulae] = Scanner::scan(program);
     std::unordered_map<std::string, uint64_t>                var2index;
     uint64_t                                                 var_count = 0;
 
@@ -507,10 +548,10 @@ TEST(Parser, GrammarTest) {
 }
 
 TEST(Parser, CompoundAssignment) {
-    const auto                               *program = "a, b = 1, c";
-    const auto                                tokens  = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
+    const auto *program           = "a, b = 1, c";
+    const auto [tokens, formulae] = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t>                var2index;
+    uint64_t                                                 var_count = 0;
 
     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
     ASSERT_NO_THROW(res = Parser::parse(tokens.at(0), var2index, var_count););
@@ -524,31 +565,31 @@ TEST(Parser, CompoundAssignment) {
 }
 
 TEST(Parser, WrongParenthesesCount) {
-    const auto                               *program = "a = ((C)";
-    const auto                                tokens  = Scanner::scan(program);
-    std::unordered_map<std::string, uint64_t> var2index;
-    uint64_t                                  var_count = 0;
+    const auto *program           = "a = ((C)";
+    const auto [tokens, formulae] = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t>                var2index;
+    uint64_t                                                 var_count = 0;
 
     std::tuple<std::vector<uint64_t>, std::vector<uint64_t>> res;
     try {
         res = Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected std::runtime_error";
-    } catch (const std::runtime_error &error) {
+        FAIL() << "Expected SyntaxError";
+    } catch (const SyntaxError &error) {
         ASSERT_EQ("Unexpected token type: "s + toString(TokenType::END),
                   error.what());
     }
 }
 
 TEST(Parser, WrongAssignmentCount) {
-    const auto                               *program = "a, b = 1";
-    const auto                                tokens  = Scanner::scan(program);
+    const auto *program           = "a, b = 1";
+    const auto [tokens, formulae] = Scanner::scan(program);
     std::unordered_map<std::string, uint64_t> var2index;
     uint64_t                                  var_count = 0;
 
     try {
         Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected std::runtime_error";
-    } catch (const std::runtime_error &error) {
+        FAIL() << "Expected SyntaxError";
+    } catch (const SyntaxError &error) {
         ASSERT_EQ(
             std::string(
                 "Number of identifiers on the left side is not equal to the "
@@ -558,33 +599,184 @@ TEST(Parser, WrongAssignmentCount) {
 }
 
 TEST(Parser, EmptyLeftSide) {
-    const auto                               *program = " = 1";
-    const auto                                tokens  = Scanner::scan(program);
+    const auto *program           = " = 1";
+    const auto [tokens, formulae] = Scanner::scan(program);
     std::unordered_map<std::string, uint64_t> var2index;
     uint64_t                                  var_count = 0;
 
     try {
         Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected std::runtime_error";
-    } catch (const std::runtime_error &error) {
+        FAIL() << "Expected SyntaxError";
+    } catch (const SyntaxError &error) {
         ASSERT_EQ("Unexpected token type: "s + toString(TokenType::ASSIGN),
                   error.what());
     }
 }
 
 TEST(Parser, EmptyRightSide) {
-    const auto                               *program = "a = ";
-    const auto                                tokens  = Scanner::scan(program);
+    const auto *program           = "a = ";
+    const auto [tokens, formulae] = Scanner::scan(program);
     std::unordered_map<std::string, uint64_t> var2index;
     uint64_t                                  var_count = 0;
 
     try {
         Parser::parse(tokens.at(0), var2index, var_count);
-        FAIL() << "Expected std::runtime_error";
-    } catch (const std::runtime_error &error) {
+        FAIL() << "Expected SyntaxError";
+    } catch (const SyntaxError &error) {
         ASSERT_EQ("Unexpected token type: END", std::string(error.what()));
     }
 }
 
-// auto main() -> int {
-// }
+struct Vertex {
+    uint64_t              formula_index;
+    std::set<uint64_t>    next;
+    std::set<uint64_t>    parents;
+    std::vector<uint64_t> dependencies;
+};
+
+auto produce_graph(const std::string &program) -> std::
+    tuple<std::vector<Vertex>, std::vector<std::string>, std::vector<bool>> {
+    const auto [tokens, formulae] = Scanner::scan(program);
+    std::unordered_map<std::string, uint64_t> var2index;
+    uint64_t                                  var_count = 0;
+
+    std::unordered_map<uint64_t, uint64_t>    dependents_origins;
+    std::vector<Vertex>                       formulae_graph;
+    std::vector<bool>                         alread_defined;
+    for (uint64_t formula_i = 0; formula_i < tokens.size(); ++formula_i) {
+        const auto &statement = tokens.at(formula_i);
+        const auto [dependents, dependencies] =
+            Parser::parse(statement, var2index, var_count);
+        alread_defined.resize(var_count);
+
+        for (const auto dependent : dependents) {
+            if (alread_defined.at(dependent)) {
+                for (const auto &[variable, index] : var2index) {
+                    if (index == dependent) {
+                        throw CycleError("Found redefinition of " + variable);
+                    }
+                }
+                throw std::runtime_error("Unreachable");
+            }
+            alread_defined.at(dependent)  = true;
+            dependents_origins[dependent] = formula_i;
+        }
+        formulae_graph.push_back(Vertex{formula_i, {}, {}, dependencies});
+    }
+
+    std::vector<bool> is_base(var_count);
+    for (uint64_t current_vertex_i = 0;
+         current_vertex_i < formulae_graph.size();
+         ++current_vertex_i) {
+
+        const auto &formula_vertex = formulae_graph.at(current_vertex_i);
+        if (formula_vertex.dependencies.empty()) {
+            is_base.at(current_vertex_i) = true;
+        }
+
+        for (const auto dependency : formula_vertex.dependencies) {
+            const auto dependency_origin = dependents_origins.at(dependency);
+
+            if (dependency_origin == current_vertex_i) {
+                throw CycleError("Found self-loop: " +
+                                 formulae.at(dependency_origin));
+            }
+
+            formulae_graph.at(dependency_origin).next.insert(current_vertex_i);
+            formulae_graph.at(current_vertex_i)
+                .parents.insert(dependency_origin);
+        }
+    }
+    return {formulae_graph, formulae, is_base};
+}
+
+class DFSTraverser {
+ public:
+    static auto traverse(const std::vector<Vertex> &graph,
+                         const std::vector<bool>   &is_base)
+        -> std::vector<uint64_t> {
+        DFSTraverser traverser(graph);
+        for (uint64_t i = 0; i < graph.size(); ++i) {
+            if (is_base.at(i)) {
+                traverser.visit_vertex(i);
+            }
+        }
+        return traverser.sorted_vertices_;
+    }
+
+ private:
+    enum class VertexColor {
+        WHITE,
+        GREY,
+        BLACK,
+    };
+
+    explicit DFSTraverser(std::vector<Vertex> graph)
+        : graph_(graph), visited_(graph.size()) {
+        sorted_vertices_.reserve(graph.size());
+    }
+
+    auto visit_vertex(uint64_t start) -> void {
+        if (visited_.at(start) == VertexColor::GREY) {
+            throw CycleError("Found cycle");
+        }
+        assert(visited_.at(start) != VertexColor::BLACK);
+        visited_.at(start) = VertexColor::GREY;
+
+        auto &current      = graph_.at(start);
+        sorted_vertices_.push_back(start);
+        for (const auto neighbour_i : current.next) {
+            auto      &neighbour              = graph_.at(neighbour_i);
+            const auto current2neighbour_edge = neighbour.parents.find(start);
+            assert(current2neighbour_edge != neighbour.parents.end());
+
+            neighbour.parents.erase(current2neighbour_edge);
+            if (neighbour.parents.empty()) {
+                visit_vertex(neighbour_i);
+            }
+        }
+        visited_.at(start) = VertexColor::BLACK;
+    }
+
+    std::vector<Vertex>      graph_;
+    std::vector<VertexColor> visited_;
+    std::vector<uint64_t>    sorted_vertices_;
+};
+
+auto main() -> int {
+    // std::ifstream foo;
+    // foo.open("/home/blackdeer/projects/discrete/txt_tests/main_input0.txt");
+    auto       &foo = std::cin;
+
+    std::string program;
+
+    while (!foo.eof()) {
+        std::string statement;
+        std::getline(foo, statement);
+        program += statement + '\n';
+    }
+
+    std::tuple<std::vector<Vertex>, std::vector<std::string>, std::vector<bool>>
+        res;
+    try {
+        res = produce_graph(program);
+    } catch (const SyntaxError &error) {
+        std::cout << "syntax error" << std::endl;
+        return EXIT_SUCCESS;
+    } catch (const std::runtime_error &error) {
+        std::cout << "cycle" << std::endl;
+        return EXIT_SUCCESS;
+    }
+
+    const auto [graph, formulae, is_base] = std::move(res);
+    std::vector<uint64_t> formulae_ordering;
+    try {
+        formulae_ordering = DFSTraverser::traverse(graph, is_base);
+    } catch (const std::runtime_error &error) {
+        std::cout << "cycle" << std::endl;
+        return EXIT_SUCCESS;
+    }
+    for (const auto formula_i : formulae_ordering) {
+        std::cout << formulae.at(formula_i) << std::endl;
+    }
+}
