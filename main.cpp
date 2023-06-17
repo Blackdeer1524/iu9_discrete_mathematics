@@ -354,6 +354,15 @@ class Parser {
                           index2func_name.at(index) = name;
                       });
 
+        for (uint64_t func_i = 0; func_i < index2func_name.size(); ++func_i) {
+            if (!parser.already_defined_.at(func_i)) {
+                const auto &undefined_function_name =
+                    index2func_name.at(func_i);
+                throw std::runtime_error("Couldn't find definition for " +
+                                         undefined_function_name);
+            }
+        }
+
         return {parser.functions_, index2func_name};
     }
 
@@ -431,7 +440,7 @@ class Parser {
         }
         const auto func_token = peek();
         assert(func_token.value.has_value());
-        functions_.push_back({});
+        functions_.emplace_back();
         advance();
 
         formal_args_list();
@@ -454,6 +463,8 @@ class Parser {
         consume({TokenType::WALRUS});
         expression();
         consume({TokenType::SEP});
+        already_defined_.at(parsing_func_index_) = true;
+        functions_.resize(func_count_);
     }
 
     auto formal_args_list() -> void {
@@ -564,7 +575,7 @@ class Parser {
                     found == func_name2index_.end()) {
                     func_name2index_.emplace(mangled_calling_function_name,
                                              func_count_);
-                    calling_func_index = func_count_++;
+                    calling_func_index = func_count_;
                     already_defined_.resize(++func_count_);
 
                 } else {
@@ -649,6 +660,18 @@ TEST(Parser, cycle) {
     EXPECT_EQ(expected_graph, graph);
     EXPECT_EQ(index2func_name[0], "foo$2");
     EXPECT_EQ(index2func_name[1], "foo$3");
+}
+
+TEST(Parser, GrammarTest) {
+    const auto *program                 = R"(
+        foo(x, y) := x = 0 ? x + y + foo(x - 1, y) : 1;
+    )";
+    const auto  tokens                  = Scanner::scan(program);
+    const auto [graph, index2func_name] = Parser::parse(tokens);
+
+    AdjListT expected_graph{{0}};
+    EXPECT_EQ(expected_graph, graph);
+    EXPECT_EQ(index2func_name[0], "foo$2");
 }
 
 // auto main() -> int {
