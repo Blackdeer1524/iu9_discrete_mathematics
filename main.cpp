@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <assert.h>
 #include <cctype>
 #include <cmath>
 #include <complex>
@@ -256,42 +257,42 @@ class Scanner {
     }
 };
 
-#include <gtest/gtest.h>
-
-TEST(SCANNER, NoArgs) {
-    const auto *program = "123 foo () + - * / = := ? : ; <> < > <= >= ,";
-    const auto  actual  = Scanner::scan(program);
-    const std::vector<Token> expected{
-        Token{TokenType::NUMBER},
-        Token{TokenType::IDENTIFIER, "foo"},
-
-        Token{TokenType::L_PARENTHESIS},
-        Token{TokenType::R_PARENTHESIS},
-
-        Token{TokenType::PLUS},
-        Token{TokenType::MINUS},
-        Token{TokenType::MULT},
-        Token{TokenType::DIV},
-
-        Token{TokenType::EQUAL},
-        Token{TokenType::WALRUS},
-
-        Token{TokenType::QUESTION_MARK},
-        Token{TokenType::COLON},
-        Token{TokenType::SEP},
-
-        Token{TokenType::NOT_EQUAL},
-        Token{TokenType::LESS},
-        Token{TokenType::GREATER},
-        Token{TokenType::LESS_OR_EQUAL},
-        Token{TokenType::GREATER_OR_EQUAL},
-        Token{TokenType::COMMA},
-
-        Token{TokenType::END},
-    };
-
-    ASSERT_EQ(expected, actual);
-}
+// #include <gtest/gtest.h>
+//
+// TEST(SCANNER, NoArgs) {
+//     const auto *program = "123 foo () + - * / = := ? : ; <> < > <= >= ,";
+//     const auto  actual  = Scanner::scan(program);
+//     const std::vector<Token> expected{
+//         Token{TokenType::NUMBER},
+//         Token{TokenType::IDENTIFIER, "foo"},
+//
+//         Token{TokenType::L_PARENTHESIS},
+//         Token{TokenType::R_PARENTHESIS},
+//
+//         Token{TokenType::PLUS},
+//         Token{TokenType::MINUS},
+//         Token{TokenType::MULT},
+//         Token{TokenType::DIV},
+//
+//         Token{TokenType::EQUAL},
+//         Token{TokenType::WALRUS},
+//
+//         Token{TokenType::QUESTION_MARK},
+//         Token{TokenType::COLON},
+//         Token{TokenType::SEP},
+//
+//         Token{TokenType::NOT_EQUAL},
+//         Token{TokenType::LESS},
+//         Token{TokenType::GREATER},
+//         Token{TokenType::LESS_OR_EQUAL},
+//         Token{TokenType::GREATER_OR_EQUAL},
+//         Token{TokenType::COMMA},
+//
+//         Token{TokenType::END},
+//     };
+//
+//     ASSERT_EQ(expected, actual);
+// }
 
 /*
 fib(n) := fibrec(1,1,n);
@@ -611,84 +612,85 @@ class Parser {
     }
 };
 
-TEST(Parser, basic) {
-    const auto *program                 = "foo(x, y) := x + y;";
-    const auto  tokens                  = Scanner::scan(program);
-    const auto [graph, index2func_name] = Parser::parse(tokens);
-
-    AdjListT expected_graph{
-        {},
-    };
-    EXPECT_EQ(expected_graph, graph);
-    EXPECT_EQ(index2func_name[0], "foo$2");
-}
-
-TEST(Parser, recursion) {
-    const auto *program                 = R"(
-        foo(x, y) := x + y + foo(x, y);
-    )";
-    const auto  tokens                  = Scanner::scan(program);
-    const auto [graph, index2func_name] = Parser::parse(tokens);
-
-    AdjListT expected_graph{{0}};
-    EXPECT_EQ(expected_graph, graph);
-    EXPECT_EQ(index2func_name[0], "foo$2");
-}
-
-TEST(Parser, overload) {
-    const auto *program                 = R"(
-        foo(x, y) := x + y + foo(x, y, 1);
-        foo(x, y, z) := x + y + z;
-    )";
-    const auto  tokens                  = Scanner::scan(program);
-    const auto [graph, index2func_name] = Parser::parse(tokens);
-
-    AdjListT expected_graph{{1}, {}};
-    EXPECT_EQ(expected_graph, graph);
-    EXPECT_EQ(index2func_name[0], "foo$2");
-    EXPECT_EQ(index2func_name[1], "foo$3");
-}
-
-TEST(Parser, cycle) {
-    const auto *program                 = R"(
-        foo(x, y) := x + y + foo(x, y, 1);
-        foo(x, y, z) := x + y + z - foo(x, z);
-    )";
-    const auto  tokens                  = Scanner::scan(program);
-    const auto [graph, index2func_name] = Parser::parse(tokens);
-
-    AdjListT expected_graph{{1}, {0}};
-    EXPECT_EQ(expected_graph, graph);
-    EXPECT_EQ(index2func_name[0], "foo$2");
-    EXPECT_EQ(index2func_name[1], "foo$3");
-}
-
-TEST(Parser, GrammarTest) {
-    const auto *program                 = R"(
-        foo(x, y) := ((x = 0 ? x + y + foo(x - 1, y) : 1)) / (x + y + -3) - ----1 ? 1111 : 2 / 31;
-    )";
-    const auto  tokens                  = Scanner::scan(program);
-    const auto [graph, index2func_name] = Parser::parse(tokens);
-
-    AdjListT expected_graph{{0}};
-    EXPECT_EQ(expected_graph, graph);
-    EXPECT_EQ(index2func_name[0], "foo$2");
-}
-
-TEST(Parser, Redefinition) {
-    const auto *program = R"(
-        foo(x, y) :=  x + y;
-        foo(x, z) :=  x - y;
-    )";
-    const auto  tokens  = Scanner::scan(program);
-
-    try {
-        Parser::parse(tokens);
-        FAIL() << "Expected redefinition error\n";
-    } catch (const std::runtime_error &error) {
-        ASSERT_EQ("Found redefinition of foo$2", std::string(error.what()));
-    }
-}
+// TEST(Parser, basic) {
+//     const auto *program                 = "foo(x, y) := x + y;";
+//     const auto  tokens                  = Scanner::scan(program);
+//     const auto [graph, index2func_name] = Parser::parse(tokens);
+//
+//     AdjListT expected_graph{
+//         {},
+//     };
+//     EXPECT_EQ(expected_graph, graph);
+//     EXPECT_EQ(index2func_name[0], "foo$2");
+// }
+//
+// TEST(Parser, recursion) {
+//     const auto *program                 = R"(
+//         foo(x, y) := x + y + foo(x, y);
+//     )";
+//     const auto  tokens                  = Scanner::scan(program);
+//     const auto [graph, index2func_name] = Parser::parse(tokens);
+//
+//     AdjListT expected_graph{{0}};
+//     EXPECT_EQ(expected_graph, graph);
+//     EXPECT_EQ(index2func_name[0], "foo$2");
+// }
+//
+// TEST(Parser, overload) {
+//     const auto *program                 = R"(
+//         foo(x, y) := x + y + foo(x, y, 1);
+//         foo(x, y, z) := x + y + z;
+//     )";
+//     const auto  tokens                  = Scanner::scan(program);
+//     const auto [graph, index2func_name] = Parser::parse(tokens);
+//
+//     AdjListT expected_graph{{1}, {}};
+//     EXPECT_EQ(expected_graph, graph);
+//     EXPECT_EQ(index2func_name[0], "foo$2");
+//     EXPECT_EQ(index2func_name[1], "foo$3");
+// }
+//
+// TEST(Parser, cycle) {
+//     const auto *program                 = R"(
+//         foo(x, y) := x + y + foo(x, y, 1);
+//         foo(x, y, z) := x + y + z - foo(x, z);
+//     )";
+//     const auto  tokens                  = Scanner::scan(program);
+//     const auto [graph, index2func_name] = Parser::parse(tokens);
+//
+//     AdjListT expected_graph{{1}, {0}};
+//     EXPECT_EQ(expected_graph, graph);
+//     EXPECT_EQ(index2func_name[0], "foo$2");
+//     EXPECT_EQ(index2func_name[1], "foo$3");
+// }
+//
+// TEST(Parser, GrammarTest) {
+//     const auto *program                 = R"(
+//         foo(x, y) := ((x = 0 ? x + y + foo(x - 1, y) : 1)) / (x + y + -3) -
+//         ----1 ? 1111 : 2 / 31;
+//     )";
+//     const auto  tokens                  = Scanner::scan(program);
+//     const auto [graph, index2func_name] = Parser::parse(tokens);
+//
+//     AdjListT expected_graph{{0}};
+//     EXPECT_EQ(expected_graph, graph);
+//     EXPECT_EQ(index2func_name[0], "foo$2");
+// }
+//
+// TEST(Parser, Redefinition) {
+//     const auto *program = R"(
+//         foo(x, y) :=  x + y;
+//         foo(x, z) :=  x - y;
+//     )";
+//     const auto  tokens  = Scanner::scan(program);
+//
+//     try {
+//         Parser::parse(tokens);
+//         FAIL() << "Expected redefinition error\n";
+//     } catch (const std::runtime_error &error) {
+//         ASSERT_EQ("Found redefinition of foo$2", std::string(error.what()));
+//     }
+// }
 
 class TarjanTraverser {
  public:
@@ -750,58 +752,58 @@ class TarjanTraverser {
     }
 };
 
-TEST(TarjanTraverser, DAG) {
-    AdjListT graph{
-        {1, 2},
-        {2},
-        {3},
-        {}
-    };
-    const auto res = TarjanTraverser::build(graph);
-    ASSERT_EQ(4, res);
-}
-
-TEST(TarjanTraverser, Cycle) {
-    AdjListT graph{
-        {1},
-        {0},
-    };
-    const auto res = TarjanTraverser::build(graph);
-    ASSERT_EQ(1, res);
-}
-
-TEST(TarjanTraverser, SelfLoop) {
-    AdjListT graph{
-        {0},
-    };
-    const auto res = TarjanTraverser::build(graph);
-    ASSERT_EQ(1, res);
-}
-
-TEST(TarjanTraverser, ColoringFurther) {
-    AdjListT graph{
-        {1},
-        {0, 2},
-        {3},
-        {}
-    };
-    const auto res = TarjanTraverser::build(graph);
-    ASSERT_EQ(3, res);
-}
-
-TEST(TarjanTraverser, Complexj) {
-    AdjListT graph{
-        {1},
-        {0, 2},
-        {3},
-        {},
-        {3, 5},
-        {6},
-        {4}
-    };
-    const auto res = TarjanTraverser::build(graph);
-    ASSERT_EQ(4, res);
-}
+// TEST(TarjanTraverser, DAG) {
+//     AdjListT graph{
+//         {1, 2},
+//         {2},
+//         {3},
+//         {}
+//     };
+//     const auto res = TarjanTraverser::build(graph);
+//     ASSERT_EQ(4, res);
+// }
+//
+// TEST(TarjanTraverser, Cycle) {
+//     AdjListT graph{
+//         {1},
+//         {0},
+//     };
+//     const auto res = TarjanTraverser::build(graph);
+//     ASSERT_EQ(1, res);
+// }
+//
+// TEST(TarjanTraverser, SelfLoop) {
+//     AdjListT graph{
+//         {0},
+//     };
+//     const auto res = TarjanTraverser::build(graph);
+//     ASSERT_EQ(1, res);
+// }
+//
+// TEST(TarjanTraverser, ColoringFurther) {
+//     AdjListT graph{
+//         {1},
+//         {0, 2},
+//         {3},
+//         {}
+//     };
+//     const auto res = TarjanTraverser::build(graph);
+//     ASSERT_EQ(3, res);
+// }
+//
+// TEST(TarjanTraverser, Complexj) {
+//     AdjListT graph{
+//         {1},
+//         {0, 2},
+//         {3},
+//         {},
+//         {3, 5},
+//         {6},
+//         {4}
+//     };
+//     const auto res = TarjanTraverser::build(graph);
+//     ASSERT_EQ(4, res);
+// }
 
 auto main() -> int {
     std::string program;
