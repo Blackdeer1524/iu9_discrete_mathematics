@@ -152,7 +152,7 @@ class Scanner {
                             tokens_.emplace_back(TokenType::WALRUS);
                             advance();
                             break;
-                        case ' ':
+                        default:
                             tokens_.emplace_back(TokenType::COLON);
                             break;
                     }
@@ -178,7 +178,7 @@ class Scanner {
                             tokens_.emplace_back(TokenType::LESS_OR_EQUAL);
                             advance();
                             break;
-                        case ' ':
+                        default:
                             tokens_.emplace_back(TokenType::LESS);
                             break;
                     }
@@ -192,7 +192,7 @@ class Scanner {
                             tokens_.emplace_back(TokenType::GREATER_OR_EQUAL);
                             advance();
                             break;
-                        case ' ':
+                        default:
                             tokens_.emplace_back(TokenType::GREATER);
                             break;
                     }
@@ -690,12 +690,6 @@ TEST(Parser, Redefinition) {
     }
 }
 
-enum class NodeColor {
-    BLACK,
-    BLUE,  // Вершина лежит в подграфе с циклом
-    RED    // Часть критического пути
-};
-
 class TarjanTraverser {
  public:
     static auto build(const AdjListT &graph) -> uint64_t {
@@ -810,4 +804,14 @@ TEST(TarjanTraverser, Complexj) {
 }
 
 auto main() -> int {
+    std::string program;
+    while (!std::cin.eof()) {
+        std::string current_line;
+        std::getline(std::cin, current_line);
+        program += current_line + '\n';
+    }
+    const auto tokens          = Scanner::scan(program);
+    const auto [graph, _]      = Parser::parse(tokens);
+    const auto component_count = TarjanTraverser::build(graph);
+    std::cout << component_count << std::endl;
 }
