@@ -664,7 +664,7 @@ TEST(Parser, cycle) {
 
 TEST(Parser, GrammarTest) {
     const auto *program                 = R"(
-        foo(x, y) := x = 0 ? x + y + foo(x - 1, y) : 1;
+        foo(x, y) := ((x = 0 ? x + y + foo(x - 1, y) : 1)) / (x + y + -3) - ----1 ? 1111 : 2 / 31;
     )";
     const auto  tokens                  = Scanner::scan(program);
     const auto [graph, index2func_name] = Parser::parse(tokens);
@@ -672,6 +672,21 @@ TEST(Parser, GrammarTest) {
     AdjListT expected_graph{{0}};
     EXPECT_EQ(expected_graph, graph);
     EXPECT_EQ(index2func_name[0], "foo$2");
+}
+
+TEST(Parser, Redefinition) {
+    const auto *program = R"(
+        foo(x, y) :=  x + y;
+        foo(x, z) :=  x - y;
+    )";
+    const auto  tokens  = Scanner::scan(program);
+
+    try {
+        Parser::parse(tokens);
+        FAIL() << "Expected redefinition error\n";
+    } catch (const std::runtime_error &error) {
+        ASSERT_EQ("Found redefinition of foo$2", std::string(error.what()));
+    }
 }
 
 // auto main() -> int {
