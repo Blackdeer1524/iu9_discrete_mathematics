@@ -1,0 +1,4 @@
+reverse(x) := x=0 ? 0 : x<0 ? -revrec(-x, 0) : revrec(x, 0);
+revrec(x, y) := x=0 ? y : revrec(x/10, y*10+rem(x,10));
+power(x, n) := rem(n,2)=1 ? x*power(x,n-1) : power(x*x, n/2);
+rem(a, b) := a - a/b*b;

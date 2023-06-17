@@ -810,8 +810,12 @@ auto main() -> int {
         std::getline(std::cin, current_line);
         program += current_line + '\n';
     }
-    const auto tokens          = Scanner::scan(program);
-    const auto [graph, _]      = Parser::parse(tokens);
-    const auto component_count = TarjanTraverser::build(graph);
-    std::cout << component_count << std::endl;
+    try {
+        const auto tokens          = Scanner::scan(program);
+        const auto [graph, _]      = Parser::parse(tokens);
+        const auto component_count = TarjanTraverser::build(graph);
+        std::cout << component_count << std::endl;
+    } catch (const std::runtime_error &) {
+        std::cout << "error" << std::endl;
+    }
 }
