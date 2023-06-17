@@ -7,6 +7,7 @@
 #include <iostream>
 #include <numeric>
 #include <optional>
+#include <stack>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -689,5 +690,215 @@ TEST(Parser, Redefinition) {
     }
 }
 
-// auto main() -> int {
-// }
+enum class NodeColor {
+    BLACK,
+    BLUE,  // Вершина лежит в подграфе с циклом
+    RED    // Часть критического пути
+};
+
+class TarjanTraverser {
+ public:
+    static auto build(const AdjListT &graph)
+        -> std::tuple<std::vector<NodeColor>, std::vector<bool>> {
+        auto traverser = TarjanTraverser(graph);
+        std::tuple<std::vector<NodeColor>, std::vector<bool>> res{
+            traverser.colors_, traverser.not_base_};
+        return res;
+    }
+
+ private:
+    AdjListT               graph_;
+    std::vector<bool>      visited_;
+    std::vector<bool>      on_stack_;
+    std::stack<uint64_t>   stack_;
+    std::vector<uint64_t>  low_;
+    std::vector<uint64_t>  ids_;
+    std::vector<bool>      not_base_;
+    std::vector<NodeColor> colors_;
+    uint64_t               timestamp_{0};
+
+    auto                   dfs(uint64_t start) -> void {
+        stack_.push(start);
+        on_stack_[start] = true;
+        visited_[start]  = true;
+        low_[start] = ids_[start] = timestamp_++;
+        for (const auto child : graph_[start]) {
+            not_base_.at(child) = true;
+            if (!visited_[child]) {
+                dfs(child);
+            }
+            if (on_stack_[child]) {
+                low_[start] = std::min(low_[start], low_[child]);
+            }
+        }
+
+        // нашли компоненту сильной связности
+        if (low_[start] == ids_[start]) {
+            // Проверка на петлю
+            const auto &children = graph_.at(start);
+            if (std::any_of(
+                    children.begin(),
+                    children.end(),
+                    [start](const auto child) { return child == start; })) {
+                color_subgraph_blue(start);
+                return;
+            }
+
+            if (const auto top = stack_.top(); top == start) {
+                stack_.pop();
+                on_stack_.at(top) = false;
+                return;
+            }
+
+            while (!stack_.empty()) {
+                const auto vertex = stack_.top();
+                stack_.pop();
+                on_stack_[vertex] = false;
+                if (vertex == start) {
+                    break;
+                }
+            }
+            color_subgraph_blue(start);
+        }
+    }
+
+    auto color_subgraph_blue(uint64_t parent) -> void {
+        if (colors_.at(parent) != NodeColor::BLACK) {
+            return;
+        }
+        colors_.at(parent)   = NodeColor::BLUE;
+        visited_.at(parent)  = true;
+        not_base_.at(parent) = true;
+        for (const auto child : graph_.at(parent)) {
+            color_subgraph_blue(child);
+        }
+    }
+
+    auto traverse() -> void {
+        for (uint64_t i = 0; i < graph_.size(); ++i) {
+            if (!visited_[i]) {
+                dfs(i);
+            }
+        }
+    }
+
+    explicit TarjanTraverser(AdjListT graph)
+        : graph_(std::move(graph)), visited_(graph_.size()),
+          on_stack_(graph_.size()), low_(graph_.size()), ids_(graph_.size()),
+          not_base_(graph_.size()), colors_(graph_.size(), NodeColor::BLACK) {
+        traverse();
+    }
+};
+
+TEST(TarjanTraverser, DAG) {
+    AdjListT graph{
+        {1, 2},
+        {2},
+        {3},
+        {}
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+    };
+    std::vector<bool> expected_not_bases{false, true, true, true};
+
+    EXPECT_EQ(expected_colors.size(), actual_colors.size());
+    EXPECT_EQ(expected_not_bases.size(), actual_not_bases.size());
+
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(TarjanTraverser, Cycle) {
+    AdjListT graph{
+        {1},
+        {0},
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+    };
+    std::vector<bool> expected_not_bases{true, true};
+
+    EXPECT_EQ(expected_colors.size(), actual_colors.size());
+    EXPECT_EQ(expected_not_bases.size(), actual_not_bases.size());
+
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(TarjanTraverser, SelfLoop) {
+    AdjListT graph{
+        {0},
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLUE,
+    };
+    std::vector<bool> expected_not_bases{true};
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(TarjanTraverser, ColoringFurther) {
+    AdjListT graph{
+        {1},
+        {0, 2},
+        {3},
+        {}
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+    };
+    std::vector<bool> expected_not_bases{true, true, true, true};
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+TEST(TarjanTraverser, PartialDAG) {
+    AdjListT graph{
+        {1},
+        {0, 2},
+        {3},
+        {},
+        {3},
+        {4},
+        {4}
+    };
+    const auto             res              = TarjanTraverser::build(graph);
+    const auto             actual_colors    = std::get<0>(res);
+    const auto             actual_not_bases = std::get<1>(res);
+    std::vector<NodeColor> expected_colors{
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLUE,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+        NodeColor::BLACK,
+    };
+    std::vector<bool> expected_not_bases{
+        true, true, true, true, true, false, false};
+    EXPECT_EQ(expected_colors, actual_colors);
+    EXPECT_EQ(expected_not_bases, actual_not_bases);
+}
+
+auto main() -> int {
+}
