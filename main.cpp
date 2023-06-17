@@ -1,54 +1,17 @@
+#include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <complex>
 #include <cstdint>
+#include <initializer_list>
 #include <iostream>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
-
-/*
-fib(n) := fibrec(1,1,n);
-fibrec(a,b,n) := n=1 ? a : fibrec(b,a+b,n-1);
-
-<program> ::= <function> <program>.
-
-<function> ::= <ident> ( <formal-args-list> ) := <expr> ; .
-
-<formal-args-list> ::= <ident-list> | .
-
-<ident-list> ::= <ident> | <ident> , <ident-list>.
-
-<expr> ::=
-  <comparison_expr> ? <comparison_expr> : <expr>
-  | <comparison_expr>.
-
-<comparison_expr> ::=
-  <arith_expr> <comparison_op> <arith_expr>
-  | <arith_expr>.
-
-<comparison_op> ::= = | <> | < | > | <= | >= .
-
-<arith_expr> ::=
-  <arith_expr> + <term>
-  | <arith_expr> - <term>
-  | <term>.
-
-<term> ::=
-  <term> * <factor>
-  | <term> / <factor>
-  | <factor>.
-
-<factor> ::=
-  <number>
-  | <ident>
-  | <ident> ( <actual_args_list> )
-  | ( <expr> )
-  | - <factor>.
-
-<actual_args_list> ::= <expr-list> | .
-
-<expr-list> ::= <expr> | <expr> , <expr-list>.
-*/
 
 // Чтобы получить из enum строки
 // https://stackoverflow.com/a/9150779
@@ -85,12 +48,12 @@ ENUM(TokenType,
      MULT,
      DIV,
 
-     ASSIGNMENT,  // =
+     EQUAL,  // =
      WALRUS,  // := . Ну ведь действительно похоже на моржа
 
      QUESTION_MARK,
-     COLON,
-     SEP,  // ;
+     COLON,  // :
+     SEP,    // ;
 
      NOT_EQUAL,         // <>
      LESS,              // <
@@ -101,6 +64,7 @@ ENUM(TokenType,
      COMMA,
      END)
 
+using std::string;
 using std::string_literals::operator""s;
 
 struct Token {
@@ -199,7 +163,7 @@ class Scanner {
                     advance();
                     break;
                 case '=':
-                    tokens_.emplace_back(TokenType::ASSIGNMENT);
+                    tokens_.emplace_back(TokenType::EQUAL);
                     advance();
                     break;
                 case '<': {
@@ -308,7 +272,7 @@ TEST(SCANNER, NoArgs) {
         Token{TokenType::MULT},
         Token{TokenType::DIV},
 
-        Token{TokenType::ASSIGNMENT},
+        Token{TokenType::EQUAL},
         Token{TokenType::WALRUS},
 
         Token{TokenType::QUESTION_MARK},
@@ -326,6 +290,365 @@ TEST(SCANNER, NoArgs) {
     };
 
     ASSERT_EQ(expected, actual);
+}
+
+/*
+fib(n) := fibrec(1,1,n);
+fibrec(a,b,n) := n=1 ? a : fibrec(b,a+b,n-1);
+
+<program> ::= <function> <program>.
+
+<function> ::= <ident> ( <formal-args-list> ) := <expr> ; .
+
+<formal-args-list> ::= <ident-list> | .
+
+<ident-list> ::= <ident> | <ident> , <ident-list>.
+
+<expr> ::=
+  <comparison_expr> ? <comparison_expr> : <expr>
+  | <comparison_expr>.
+
+<comparison_expr> ::=
+  <arith_expr> <comparison_op> <arith_expr>
+  | <arith_expr>.
+
+<comparison_op> ::= = | <> | < | > | <= | >= .
+
+<arith_expr> ::=
+  <arith_expr> + <term>
+  | <arith_expr> - <term>
+  | <term>.
+
+<term> ::=
+  <term> * <factor>
+  | <term> / <factor>
+  | <factor>.
+
+<factor> ::=
+  <number>
+  | <ident>
+  | <ident> ( <actual_args_list> )
+  | ( <expr> )
+  | - <factor>.
+
+<actual_args_list> ::= <expr-list> | .
+
+<expr-list> ::= <expr> | <expr> , <expr-list>.
+*/
+
+using AdjListT = std::vector<std::unordered_set<uint64_t>>;
+
+class Parser {
+ public:
+    static auto parse(const std::vector<Token> &tokens)
+        -> std::tuple<AdjListT, std::vector<std::string>> {
+        Parser parser(tokens);
+        parser.parse_program();
+
+        std::vector<std::string> index2func_name(parser.func_count_);
+        std::for_each(parser.func_name2index_.begin(),
+                      parser.func_name2index_.end(),
+                      [&index2func_name](
+                          const std::pair<std::string, uint64_t> &mapping) {
+                          const auto [name, index]  = mapping;
+                          index2func_name.at(index) = name;
+                      });
+
+        return {parser.functions_, index2func_name};
+    }
+
+ private:
+    const std::vector<Token>                  tokens_;
+    uint64_t                                  index_{0};
+
+    uint64_t                                  scope_variables_count_{0};
+    std::unordered_set<std::string>           scope_variables_;
+
+    uint64_t                                  parsing_func_index_{0};
+    AdjListT                                  functions_;
+    std::unordered_map<std::string, uint64_t> func_name2index_;
+    std::vector<bool>                         already_defined_;
+    uint64_t                                  func_count_{0};
+
+    explicit Parser(const std::vector<Token> &tokens) : tokens_(tokens) {
+    }
+
+    [[nodiscard]] auto peek() const -> const Token & {
+        return tokens_.at(index_);
+    }
+
+    auto advance() -> void {
+        ++index_;
+    }
+
+    auto parse_program() -> void {
+        while (!match({TokenType::END})) {
+            function();
+        }
+    }
+
+    auto consume(std::initializer_list<TokenType> expected) -> void {
+        if (match(expected)) {
+            advance();
+            return;
+        }
+        const auto  next = peek();
+        std::string expected_types_str =
+            "[" +
+            std::accumulate(
+                expected.begin(),
+                expected.end(),
+                std::string(),
+                [](const string &res, const TokenType expected_token_type) {
+                    return res + toString(expected_token_type) + ',';
+                }) +
+            "]";
+
+        throw std::runtime_error(
+            "Unexpected token type: " + toString(next.type) + ". Expected " +
+            expected_types_str);
+    }
+
+    auto match(std::initializer_list<TokenType> expected) -> bool {
+        const auto next = peek();
+        return std::any_of(expected.begin(),
+                           expected.end(),
+                           [next](const TokenType expected_type) {
+                               return next.type == expected_type;
+                           });
+    }
+
+    auto mangle_function_name(const std::string &name, const uint64_t arg_count)
+        -> std::string {
+        return name + "$" + std::to_string(arg_count);
+    }
+
+    auto function() -> void {
+        if (!match({TokenType::IDENTIFIER})) {
+            const auto not_ident = peek();
+            throw std::runtime_error("Expected identifier. Got " +
+                                     toString(not_ident.type));
+        }
+        const auto func_token = peek();
+        assert(func_token.value.has_value());
+        functions_.push_back({});
+        advance();
+
+        formal_args_list();
+        // поддержка перегрузки по количеству параметров
+        const auto &mangled_function_name = mangle_function_name(
+            func_token.value.value(), scope_variables_count_);
+        const auto found = func_name2index_.find(mangled_function_name);
+        if (found == func_name2index_.end()) {
+            func_name2index_[mangled_function_name] = parsing_func_index_ =
+                func_count_;
+            already_defined_.resize(++func_count_);
+        } else {
+            parsing_func_index_ = found->second;
+            if (already_defined_.at(parsing_func_index_)) {
+                throw std::runtime_error("Found redefinition of " +
+                                         mangled_function_name);
+            }
+        }
+
+        consume({TokenType::WALRUS});
+        expression();
+        consume({TokenType::SEP});
+    }
+
+    auto formal_args_list() -> void {
+        scope_variables_count_ = 0;
+        scope_variables_.clear();
+        scope_variables_.clear();
+
+        consume({TokenType::L_PARENTHESIS});
+        while (match({TokenType::IDENTIFIER})) {
+            const auto &argument = peek();
+            assert(argument.value.has_value());
+            const auto &argument_name = argument.value.value();
+
+            const auto  found         = scope_variables_.find(argument_name);
+            if (found != scope_variables_.end()) {
+                throw std::runtime_error(
+                    "Found redeclaration of formal argument");
+            }
+            scope_variables_.insert(argument_name);
+            ++scope_variables_count_;
+            advance();
+            if (!match({TokenType::COMMA})) {
+                break;
+            }
+            advance();
+        }
+        consume({TokenType::R_PARENTHESIS});
+    }
+
+    auto expression() -> void {
+        comparison_expr();
+        if (!match({TokenType::QUESTION_MARK})) {
+            return;
+        }
+        advance();
+        comparison_expr();
+        consume({TokenType::COLON});
+        expression();
+    }
+
+    auto comparison_expr() -> void {
+        arith_expr();
+        if (!match({TokenType::EQUAL,
+                    TokenType::NOT_EQUAL,
+                    TokenType::LESS,
+                    TokenType::GREATER,
+                    TokenType::LESS_OR_EQUAL,
+                    TokenType::GREATER_OR_EQUAL})) {
+            return;
+        }
+        advance();
+        arith_expr();
+    }
+
+    // На НЕ нужен приоритет операций
+    auto arith_expr() -> void {
+        unary();
+        while (match({TokenType::PLUS,
+                      TokenType::MINUS,
+                      TokenType::MULT,
+                      TokenType::DIV})) {
+            advance();
+            unary();
+        }
+    }
+
+    auto unary() -> void {
+        while (match({TokenType::MINUS})) {
+            advance();
+        }
+        primary();
+    }
+
+    auto primary() -> void {
+        if (match({TokenType::NUMBER})) {
+            advance();
+            return;
+        }
+        if (match({TokenType::L_PARENTHESIS})) {
+            advance();
+            expression();
+            consume({TokenType::R_PARENTHESIS});
+            return;
+        }
+
+        if (!match({TokenType::IDENTIFIER})) {
+            const auto &token = peek();
+            throw std::runtime_error("Expected identifier. Got " +
+                                     toString(token.type));
+        }
+        const auto &identifier = peek();
+        assert(identifier.value.has_value());
+        advance();
+
+        if (match({TokenType::L_PARENTHESIS})) {
+            const auto  actual_arg_list_length = actual_args_list();
+
+            const auto &calling_function_name  = identifier.value.value();
+            if (scope_variables_.find(calling_function_name) ==
+                scope_variables_.end()) {
+
+                const auto mangled_calling_function_name = mangle_function_name(
+                    calling_function_name, actual_arg_list_length);
+
+                uint64_t calling_func_index;
+                if (const auto found =
+                        func_name2index_.find(mangled_calling_function_name);
+                    found == func_name2index_.end()) {
+                    func_name2index_.emplace(mangled_calling_function_name,
+                                             func_count_);
+                    calling_func_index = func_count_++;
+                    already_defined_.resize(++func_count_);
+
+                } else {
+                    calling_func_index = found->second;
+                }
+
+                functions_.at(parsing_func_index_).insert(calling_func_index);
+            }
+        } else {
+            const auto &identifier_name = identifier.value.value();
+            if (const auto found = scope_variables_.find(identifier_name);
+                found == scope_variables_.end()) {
+                throw std::runtime_error("Unknown parameter: " +
+                                         identifier_name);
+            }
+        }
+    }
+
+    auto actual_args_list() -> uint64_t {
+        consume({TokenType::L_PARENTHESIS});
+        uint64_t actual_arg_list_length = 0;
+        while (!match({TokenType::R_PARENTHESIS})) {
+            expression();
+            ++actual_arg_list_length;
+            if (!match({TokenType::COMMA})) {
+                break;
+            }
+            advance();
+        }
+        consume({TokenType::R_PARENTHESIS});
+        return actual_arg_list_length;
+    }
+};
+
+TEST(Parser, basic) {
+    const auto *program                 = "foo(x, y) := x + y;";
+    const auto  tokens                  = Scanner::scan(program);
+    const auto [graph, index2func_name] = Parser::parse(tokens);
+
+    AdjListT expected_graph{
+        {},
+    };
+    EXPECT_EQ(expected_graph, graph);
+    EXPECT_EQ(index2func_name[0], "foo$2");
+}
+
+TEST(Parser, recursion) {
+    const auto *program                 = R"(
+        foo(x, y) := x + y + foo(x, y);
+    )";
+    const auto  tokens                  = Scanner::scan(program);
+    const auto [graph, index2func_name] = Parser::parse(tokens);
+
+    AdjListT expected_graph{{0}};
+    EXPECT_EQ(expected_graph, graph);
+    EXPECT_EQ(index2func_name[0], "foo$2");
+}
+
+TEST(Parser, overload) {
+    const auto *program                 = R"(
+        foo(x, y) := x + y + foo(x, y, 1);
+        foo(x, y, z) := x + y + z;
+    )";
+    const auto  tokens                  = Scanner::scan(program);
+    const auto [graph, index2func_name] = Parser::parse(tokens);
+
+    AdjListT expected_graph{{1}, {}};
+    EXPECT_EQ(expected_graph, graph);
+    EXPECT_EQ(index2func_name[0], "foo$2");
+    EXPECT_EQ(index2func_name[1], "foo$3");
+}
+
+TEST(Parser, cycle) {
+    const auto *program                 = R"(
+        foo(x, y) := x + y + foo(x, y, 1);
+        foo(x, y, z) := x + y + z - foo(x, z);
+    )";
+    const auto  tokens                  = Scanner::scan(program);
+    const auto [graph, index2func_name] = Parser::parse(tokens);
+
+    AdjListT expected_graph{{1}, {0}};
+    EXPECT_EQ(expected_graph, graph);
+    EXPECT_EQ(index2func_name[0], "foo$2");
+    EXPECT_EQ(index2func_name[1], "foo$3");
 }
 
 // auto main() -> int {
