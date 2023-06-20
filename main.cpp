@@ -83,13 +83,10 @@ auto eq_dist(const AdjacencyListT        &adj_list,
                     [](auto item) { return !item.has_value(); })) {
         return {};
     }
-    auto initial_distances_view = std::views::transform(
-        opt_initial_distances, [](auto item) { return item.value(); });
-
     auto initial_distances = std::vector<uint64_t>();
-    std::copy(initial_distances_view.begin(),
-              initial_distances_view.end(),
-              std::back_inserter(initial_distances));
+    for (const auto item : opt_initial_distances) {
+        initial_distances.push_back(item.value());
+    }
 
     auto valid_vertices = std::vector<bool>(adj_list.size(), true);
     for (auto start_vertex : support_vertices) {
