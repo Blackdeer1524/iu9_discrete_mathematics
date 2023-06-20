@@ -1,210 +1,196 @@
 #include <algorithm>
-#include <assert.h>
 #include <cstdint>
-#include <fstream>
-#include <functional>
 #include <iostream>
-#include <istream>
-#include <iterator>
-#include <queue>
-#include <set>
 #include <stack>
 #include <string>
-#include <sys/types.h>
-#include <tuple>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
-using AdjListT = std::vector<std::vector<uint64_t>>;
-
-class TarjanTraverser {
- public:
-    static auto traverse(const AdjListT &graph) -> uint64_t {
-        TarjanTraverser traverser(graph);
-        for (uint64_t vertex = 0; vertex < graph.size(); ++vertex) {
-            if (!traverser.visited_.at(vertex)) {
-                traverser.traverse_vertex(vertex);
-            }
-        }
-        return traverser.natural_cycles_count_;
-    }
-
- private:
-    const AdjListT       &graph_;
-    std::vector<bool>     visited_;
-    std::vector<bool>     on_stack_;
-    std::stack<uint64_t>  stack_;
-    std::vector<uint64_t> in_time_;
-    std::vector<uint64_t> low_;
-    uint64_t              timestamp_{0};
-    uint64_t              natural_cycles_count_{0};
-
-    auto                  traverse_vertex(uint64_t start) -> void {
-        on_stack_.at(start) = true;
-        visited_.at(start)  = true;
-        stack_.push(start);
-        in_time_.at(start) = low_.at(start) = timestamp_++;
-
-        for (const auto neighbour : graph_.at(start)) {
-            if (!visited_.at(neighbour)) {
-                traverse_vertex(neighbour);
-            }
-            if (on_stack_.at(neighbour)) {
-                low_.at(start) = std::min(low_.at(start), low_.at(neighbour));
-            }
-        }
-
-        if (low_.at(start) == in_time_.at(start)) {
-            if (const auto top_stack_item = stack_.top();
-                top_stack_item == start) {
-                stack_.pop();
-                return;
-            }
-            for (;;) {
-                const auto top_stack_item = stack_.top();
-                stack_.pop();
-                if (top_stack_item == start) {
-                    break;
-                }
-            }
-            ++natural_cycles_count_;
-        }
-    }
-
-    explicit TarjanTraverser(const AdjListT &graph)
-        : graph_(graph), visited_(graph_.size()), on_stack_(graph_.size()),
-          in_time_(graph_.size()), low_(graph_.size()) {
-    }
+struct Vertex {
+    bool                  is_unreachable;
+    uint64_t              tin;
+    std::string           command;
+    uint64_t              operand;
+    Vertex               *parent;
+    Vertex               *ancestor;
+    Vertex               *idom;
+    Vertex               *sdom;
+    Vertex               *label;
+    std::vector<Vertex *> next;
+    std::vector<Vertex *> prev;
+    std::vector<Vertex *> bucket;
 };
 
-auto process(uint64_t                                current_label_index,
-             uint64_t                               &prev_label_index,
-             AdjListT                               &graph,
-             std::unordered_map<uint64_t, uint64_t> &label2index,
-             uint64_t                               &total_label_count,
-             std::set<uint64_t, std::greater<>>     &forward_jumps,
-             std::istream                           &is) -> uint64_t {
-    std::string command;
-    is >> command;
+uint64_t timestamp = 1;
 
-    graph.at(prev_label_index).push_back(current_label_index);
+auto     dfs(Vertex *v) -> void {
+    v->is_unreachable = false;
+    v->tin            = timestamp++;
+    for (uint64_t child_i = 0; child_i < v->next.size(); ++child_i) {
+        if (v->next.at(child_i)->is_unreachable) {
+            v->next.at(child_i)->parent = v;
+            dfs(v->next.at(child_i));
+        }
+    }
+}
 
-    if (command == "ACTION") {
-        prev_label_index = current_label_index;
-    } else if (command == "BRANCH") {
-        uint64_t branch_jump_label;
-        is >> branch_jump_label;
+auto find_min(Vertex *v) -> Vertex * {
+    if (v->ancestor == nullptr) {
+        return v;
+    }
+    std::stack<Vertex *> s;
+    auto                *u = v;
+    while (u->ancestor->ancestor != nullptr) {
+        s.push(u);
+        u = u->ancestor;
+    }
+    while (!s.empty()) {
+        v = s.top();
+        s.pop();
+        if (v->ancestor->label->sdom->tin < v->label->sdom->tin) {
+            v->label = v->ancestor->label;
+        }
+        v->ancestor = u->ancestor;
+    }
+    return v->label;
+}
 
-        uint64_t branch_jump_label_index;
-        if (const auto found = label2index.find(branch_jump_label);
-            found == label2index.end()) {
-            label2index[branch_jump_label] = branch_jump_label_index =
-                total_label_count++;
-            forward_jumps.insert(branch_jump_label_index);
-        } else {
-            branch_jump_label_index = found->second;
+auto dominators(std::vector<Vertex *> &graph) -> void {
+    std::sort(graph.begin(),
+              graph.end(),
+              [](const Vertex *left, const Vertex *right) -> bool {
+                  return left->tin > right->tin;
+              });
+    for (auto *vertex : graph) {
+        if (vertex->tin == 1) {
+            continue;
         }
 
-        graph.at(current_label_index).push_back(branch_jump_label_index);
-        prev_label_index = current_label_index;
-    } else if (command == "JUMP") {
-        uint64_t jump_label;
-        is >> jump_label;
-
-        uint64_t jump_destination = 0;
-        if (const auto found = label2index.find(jump_label);
-            found == label2index.end()) {
-            // Прыжок вперед
-            prev_label_index        = current_label_index;
-            label2index[jump_label] = total_label_count;
-            jump_destination        = total_label_count;
-            ++total_label_count;
-            forward_jumps.insert(jump_destination);
-        } else {
-            // Прыжок вперед на известную метку (может как вперед, так и назад)
-            jump_destination             = found->second;
-            const auto found_destination = forward_jumps.find(jump_destination);
-            if (found_destination == forward_jumps.end()) {
-                graph.at(current_label_index).push_back(jump_destination);
-                return current_label_index;
+        for (auto *v : vertex->prev) {
+            auto *u = find_min(v);
+            if (u->sdom->tin < vertex->sdom->tin) {
+                vertex->sdom = u->sdom;
             }
         }
-        for (;;) {
-            uint64_t skipping_label;
-            is >> skipping_label;
 
-            if (const auto found_skipping = label2index.find(skipping_label);
-                found_skipping != label2index.end()) {
-                const uint64_t skipping_label_index = found_skipping->second;
-                forward_jumps.erase(forward_jumps.begin());
-
-                prev_label_index = current_label_index;
-                if (skipping_label_index == jump_destination) {
-                    return process(jump_destination,
-                                   prev_label_index,
-                                   graph,
-                                   label2index,
-                                   total_label_count,
-                                   forward_jumps,
-                                   is);
-                }
+        vertex->ancestor = vertex->parent;
+        vertex->sdom->bucket.push_back(vertex);
+        for (auto *v : vertex->parent->bucket) {
+            auto *u = find_min(v);
+            if (u->sdom == v->sdom) {
+                v->idom = v->sdom;
+            } else {
+                v->idom = u;
             }
-            std::string placeholder;
-            std::getline(is, placeholder);
+        }
+        vertex->parent->bucket.clear();
+    }
+
+    for (auto *vertex : graph) {
+        if (vertex->tin == 1) {
+            continue;
+        }
+        if (vertex->idom != vertex->sdom) {
+            vertex->idom = vertex->idom->idom;
         }
     }
-    uint64_t next_label;
-    is >> next_label;
-    if (!is) {
-        return prev_label_index;
-    }
 
-    uint64_t next_label_index;
-    if (const auto found = label2index.find(next_label);
-        found == label2index.end()) {
-        label2index[next_label] = next_label_index = total_label_count++;
-    } else {
-        next_label_index = found->second;
-    }
-
-    return next_label_index;
+    graph.at(graph.size() - 1)->idom = nullptr;
 }
 
 auto main() -> int {
-    std::ifstream foo;
-    foo.open("/home/blackdeer/projects/discrete/test.txt");
+    uint64_t    n;
+    uint64_t    label;
+    uint64_t    operand;
+    std::string command;
+    std::cin >> n;
 
-    uint64_t n;
-    foo >> n;
-    AdjListT graph(n);
-
-    uint64_t first_label;
-    foo >> first_label;
-    std::unordered_map<uint64_t, uint64_t> label2index{
-        {first_label, 0}
-    };
-    uint64_t                           total_label_count   = 1;
-    uint64_t                           current_label_index = 0;
-    uint64_t                           prev_label_index    = 0;
-
-    std::set<uint64_t, std::greater<>> forward_jumps;
-    for (;;) {
-        const auto next_label = process(current_label_index,
-                                        prev_label_index,
-                                        graph,
-                                        label2index,
-                                        total_label_count,
-                                        forward_jumps,
-                                        foo);
-        if (next_label == prev_label_index) {
-            break;
-        }
-        prev_label_index    = current_label_index;
-        current_label_index = next_label;
+    std::vector<Vertex *>                  graph;
+    std::unordered_map<uint64_t, uint64_t> label2index;
+    for (uint64_t i = 0; i < n; ++i) {
+        auto *v           = new Vertex{};
+        v->is_unreachable = true;
+        v->sdom           = v;
+        v->label          = v;
+        graph.push_back(v);
     }
 
-    const auto res = TarjanTraverser::traverse(graph);
-    std::cout << res << std::endl;
-    return 0;
+    for (uint64_t i = 0; i < graph.size(); ++i) {
+        std::cin >> label >> command;
+        graph.at(i)->command = command;
+        if (command != "ACTION") {
+            std::cin >> operand;
+            graph.at(i)->operand = operand;
+        }
+        label2index[label] = i;
+    }
+
+    for (uint64_t i = 0; i < graph.size(); ++i) {
+        auto *vertex = graph.at(i);
+        if (vertex->command == "ACTION") {
+            if (i < n - 1) {
+                graph.at(i)->next.push_back(graph.at(i + 1));
+                graph.at(i + 1)->prev.push_back(graph.at(i));
+            }
+        } else if (vertex->command == "JUMP") {
+            operand = label2index[graph.at(i)->operand];
+            graph.at(i)->next.push_back(graph.at(operand));
+            graph.at(operand)->prev.push_back(graph.at(i));
+        } else {
+            operand = label2index[graph.at(i)->operand];
+            graph.at(i)->next.push_back(graph.at(operand));
+            graph.at(operand)->prev.push_back(graph.at(i));
+            if (i < n - 1) {
+                graph.at(i)->next.push_back(graph.at(i + 1));
+                graph.at(i + 1)->prev.push_back(graph.at(i));
+            }
+        }
+    }
+
+    dfs(graph[0]);
+
+    for (auto &ancestor : graph) {
+        if (ancestor->is_unreachable) {
+            continue;
+        }
+        for (uint64_t j = 0; j < ancestor->prev.size(); ++j) {
+            if (!ancestor->prev.at(j)->is_unreachable) {
+                continue;
+            }
+            ancestor->prev.at(j) = ancestor->prev.at(ancestor->prev.size() - 1);
+            ancestor->prev.resize(ancestor->prev.size() - 1);
+            j--;
+        }
+    }
+
+    for (uint64_t i = 0; i < graph.size(); ++i) {
+        if (!graph.at(i)->is_unreachable) {
+            continue;
+        }
+        delete graph.at(i);
+        graph.at(i) = graph.at(graph.size() - 1);
+        graph.resize(graph.size() - 1);
+        i--;
+        n--;
+    }
+
+    dominators(graph);
+
+    uint64_t ans = 0;
+    for (auto *vertex : graph) {
+        for (auto *p : vertex->prev) {
+            while (p != vertex && p != nullptr) {
+                p = p->idom;
+            }
+            if (p == vertex) {
+                ans++;
+                break;
+            }
+        }
+    }
+    std::cout << ans << std::endl;
+
+    for (auto *vertex : graph) {
+        delete vertex;
+    }
 }
