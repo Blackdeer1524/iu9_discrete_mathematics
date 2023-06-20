@@ -475,7 +475,7 @@ class Parser {
         scope_variables_.clear();
 
         consume({TokenType::L_PARENTHESIS});
-        while (match({TokenType::IDENTIFIER})) {
+        while (!match({TokenType::R_PARENTHESIS})) {
             const auto &argument = peek();
             assert(argument.value.has_value());
             const auto &argument_name = argument.value.value();
@@ -492,6 +492,12 @@ class Parser {
                 break;
             }
             advance();
+            if (!match({TokenType::IDENTIFIER})) {
+                const auto &next = peek();
+                throw std::runtime_error(
+                    "Unexpected token type: " + toString(next.type) +
+                    ". Expected " + toString(TokenType::IDENTIFIER));
+            }
         }
         consume({TokenType::R_PARENTHESIS});
     }
@@ -598,14 +604,16 @@ class Parser {
 
     auto actual_args_list() -> uint64_t {
         consume({TokenType::L_PARENTHESIS});
-        uint64_t actual_arg_list_length = 0;
-        while (!match({TokenType::R_PARENTHESIS})) {
+        if (match({TokenType::R_PARENTHESIS})) {
+            advance();
+            return 0;
+        }
+        expression();
+        uint64_t actual_arg_list_length = 1;
+        while (match({TokenType::COMMA})) {
+            advance();
             expression();
             ++actual_arg_list_length;
-            if (!match({TokenType::COMMA})) {
-                break;
-            }
-            advance();
         }
         consume({TokenType::R_PARENTHESIS});
         return actual_arg_list_length;
