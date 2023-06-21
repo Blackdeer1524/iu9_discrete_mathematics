@@ -1,11 +1,14 @@
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
 #include <queue>
 #include <stack>
+#include <sys/types.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -69,7 +72,7 @@ class TarjanTraverser {
         on_stack_[start] = true;
         visited_[start]  = true;
         low_[start] = ids_[start] = timestamp_++;
-        for (const auto child : graph_[start]) {
+        for (const auto &child : graph_[start]) {
             not_base_.at(child.vertex_name) = true;
             if (!visited_[child.vertex_name]) {
                 dfs(child.vertex_name);
@@ -81,24 +84,18 @@ class TarjanTraverser {
 
         // нашли компоненту сильной связности
         if (low_[start] == ids_[start]) {
-            // Проверка на петлю
-            const auto &children = graph_.at(start);
-            if (std::any_of(children.begin(),
-                            children.end(),
-                            [start](const auto child) {
-                                return child.vertex_name == start;
-                            })) {
-                color_subgraph_blue(start);
-                return;
-            }
+            const auto &children      = graph_.at(start);
+            const auto  has_self_loop = std::any_of(
+                children.begin(), children.end(), [start](const auto child) {
+                    return child.vertex_name == start;
+                });
 
-            if (const auto top = stack_.top(); top == start) {
+            if (const auto top = stack_.top(); !has_self_loop && top == start) {
                 stack_.pop();
                 on_stack_.at(top) = false;
                 return;
             }
-
-            while (!stack_.empty()) {
+            for (;;) {
                 const auto vertex = stack_.top();
                 stack_.pop();
                 on_stack_[vertex] = false;
@@ -594,8 +591,6 @@ auto graph2dotlang(const WeightedAdjListT                          &graph,
 
 auto main(int /*argc*/, char * /*argv*/[]) -> int {
     // assert(argc == 2);
-    // std::ifstream foo(argv[1]);
-
     auto &foo                                                = std::cin;
     const auto [chains, index2cost, index2name, graph_order] = parse_input(foo);
 
