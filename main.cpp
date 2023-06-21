@@ -350,6 +350,7 @@ class Parser {
 
     std::unordered_map<std::string, uint64_t> &var2index_;
     uint64_t                                  &var_count_;
+    uint64_t                                   definitions_count_{0};
 
     std::vector<uint64_t>                      dependent_;
     std::vector<uint64_t>                      dependincies_;
@@ -400,56 +401,45 @@ class Parser {
         }
     }
 
-    auto count_left() -> uint64_t {
-        for (;;) {
-            if (match({IDENTIFIER})) {
-                const auto &next_token = peek();
-                assert(next_token.value.has_value());
-                const auto &variable_name = next_token.value.value();
+    auto assigning_var() {
+        const auto &next_token = peek();
+        consume({TokenType::IDENTIFIER});
 
-                uint64_t    index;
-                if (auto found_iter = var2index_.find(variable_name);
-                    found_iter == var2index_.end()) {
-                    var2index_.emplace(variable_name, var_count_);
-                    index = var_count_++;
-                } else {
-                    index = found_iter->second;
-                }
+        ++definitions_count_;
+        assert(next_token.value.has_value());
+        const auto &variable_name = next_token.value.value();
 
-                dependent_.push_back(index);
-                advance();
-            } else {
-                const auto &next_token = peek();
-                throw SyntaxError("Unexpected token type: "s +
-                                  toString(next_token.type));
-            }
-
-            if (match({COMMA})) {
-                advance();
-            } else if (match({ASSIGN})) {
-                advance();
-                break;
-            } else {
-                const auto &next_token = peek();
-                throw SyntaxError("Unexpected token type: "s +
-                                  toString(next_token.type));
-            }
+        uint64_t    index;
+        if (auto found_iter = var2index_.find(variable_name);
+            found_iter == var2index_.end()) {
+            var2index_.emplace(variable_name, var_count_);
+            index = var_count_++;
+        } else {
+            index = found_iter->second;
         }
+
+        dependent_.push_back(index);
+    }
+
+    auto count_left() -> uint64_t {
+        assigning_var();
+        while (match({TokenType::COMMA})) {
+            advance();
+            assigning_var();
+        }
+        consume({TokenType::ASSIGN});
         return dependent_.size();
     }
 
     auto count_right() -> uint64_t {
-        uint64_t count = 0;
-        for (;;) {
-            expression();
+        expression();
+        uint64_t count = 1;
+        while (match({TokenType::COMMA})) {
+            advance();
             ++count;
-            if (match({TokenType::COMMA})) {
-                advance();
-            }
-            if (match({TokenType::END})) {
-                break;
-            }
+            expression();
         }
+        consume({TokenType::END});
         return count;
     }
 
@@ -669,7 +659,12 @@ auto produce_graph(const std::string &program) -> std::
         }
 
         for (const auto dependency : formula_vertex.dependencies) {
-            const auto dependency_origin = dependents_origins.at(dependency);
+            const auto found_dependency_origin =
+                dependents_origins.find(dependency);
+            if (found_dependency_origin == dependents_origins.end()) {
+                throw SyntaxError("Found undefined variable");
+            }
+            const auto dependency_origin = found_dependency_origin->second;
 
             if (dependency_origin == current_vertex_i) {
                 throw CycleError("Found self-loop: " +
