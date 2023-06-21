@@ -1,11 +1,13 @@
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
 #include <queue>
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // https://www.youtube.com/watch?v=wUgWX0nc4NY
@@ -24,10 +26,22 @@ struct EdgeInfo {
     auto      operator==(const uint64_t name) const -> bool {
         return vertex_name == name;
     }
+
+    auto operator==(const EdgeInfo &other) const -> bool {
+        return vertex_name == other.vertex_name;
+    }
 };
 
-using WeightedAdjListT = std::vector<std::vector<EdgeInfo>>;
-using AdjListT         = std::vector<std::vector<uint64_t>>;
+template <>
+struct std::hash<EdgeInfo> {
+    auto operator()(const EdgeInfo &obj) const noexcept -> uint64_t {
+        return std::hash<uint64_t>()(obj.vertex_name);
+    }
+};
+
+using WeightedAdjListT =
+    std::vector<std::unordered_set<EdgeInfo, std::hash<EdgeInfo>>>;
+using AdjListT = std::vector<std::vector<uint64_t>>;
 
 class TarjanTraverser {
  public:
@@ -479,7 +493,7 @@ auto construct_oriented_graph(
             const auto current_job = *current_job_iter;
 
             const auto job_cost    = index2cost.at(current_job);
-            graph.at(prev_job).push_back(
+            graph.at(prev_job).insert(
                 {current_job, job_cost, NodeColor::BLACK});
 
             ++prev_job_iter;
@@ -496,10 +510,16 @@ auto color_red(uint64_t                start,
     vertex_colors.at(start) = NodeColor::RED;
     for (const auto parent : transposed_graph.at(start)) {
         auto &parent_node = graph.at(parent);
-        auto  found_child =
+        auto  found_child_iter =
             std::find(parent_node.begin(), parent_node.end(), start);
-        assert(found_child != parent_node.end());
-        found_child->color = NodeColor::RED;
+
+        assert(found_child_iter != parent_node.end());
+        auto new_child  = *found_child_iter;
+        new_child.color = NodeColor::RED;
+        parent_node.erase(found_child_iter);
+
+        parent_node.insert(new_child);
+
         color_red(parent, graph, transposed_graph, vertex_colors);
     }
 }
