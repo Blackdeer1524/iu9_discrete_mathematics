@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -9,19 +10,24 @@
 
 // https://www.youtube.com/watch?v=wUgWX0nc4NY
 
-struct EdgeInfo {
-    uint64_t vertex_name;
-    uint64_t weight;
-};
-
-using WeightedAdjListT = std::vector<std::vector<EdgeInfo>>;
-using AdjListT         = std::vector<std::vector<uint64_t>>;
-
 enum class NodeColor {
     BLACK,
     BLUE,  // Вершина лежит в подграфе с циклом
     RED    // Часть критического пути
 };
+
+struct EdgeInfo {
+    uint64_t  vertex_name;
+    uint64_t  weight;
+    NodeColor color;
+
+    auto      operator==(const uint64_t name) const -> bool {
+        return vertex_name == name;
+    }
+};
+
+using WeightedAdjListT = std::vector<std::vector<EdgeInfo>>;
+using AdjListT         = std::vector<std::vector<uint64_t>>;
 
 class TarjanTraverser {
  public:
@@ -130,7 +136,7 @@ class DijkstraTraverser {
         -> std::tuple<std::vector<std::optional<uint64_t>>, AdjListT> {
         DijkstraTraverser traverser(graph, colors);
         for (uint64_t i = 0; i < traverser.visited_.size(); ++i) {
-            if (/* !traverser.visited_.at(i) &&  */ !not_bases.at(i)) {
+            if (!not_bases.at(i)) {
                 assert(!traverser.visited_.at(i));
                 traverser.max_distances_.at(i) = index2cost.at(i);
                 traverser.traverse(i);
@@ -176,7 +182,7 @@ class DijkstraTraverser {
         while (!pq.empty()) {
             const auto [total_distance, vertex] = pq.top();
             pq.pop();
-            for (const auto [child, edge_weight] : graph_.at(vertex)) {
+            for (const auto [child, edge_weight, _] : graph_.at(vertex)) {
                 if (colors_.at(child) == NodeColor::BLUE) {
                     // Такое возможно когда есть внешнее ребро к синему
                     // подграфу
@@ -473,7 +479,8 @@ auto construct_oriented_graph(
             const auto current_job = *current_job_iter;
 
             const auto job_cost    = index2cost.at(current_job);
-            graph.at(prev_job).push_back({current_job, job_cost});
+            graph.at(prev_job).push_back(
+                {current_job, job_cost, NodeColor::BLACK});
 
             ++prev_job_iter;
             ++current_job_iter;
@@ -483,20 +490,27 @@ auto construct_oriented_graph(
 }
 
 auto color_red(uint64_t                start,
+               WeightedAdjListT       &graph,
                const AdjListT         &transposed_graph,
                std::vector<NodeColor> &vertex_colors) -> void {
     vertex_colors.at(start) = NodeColor::RED;
     for (const auto parent : transposed_graph.at(start)) {
-        color_red(parent, transposed_graph, vertex_colors);
+        auto &parent_node = graph.at(parent);
+        auto  found_child =
+            std::find(parent_node.begin(), parent_node.end(), start);
+        assert(found_child != parent_node.end());
+        found_child->color = NodeColor::RED;
+        color_red(parent, graph, transposed_graph, vertex_colors);
     }
 }
 
-auto mark_critical_path(const AdjListT         &transposed_graph,
+auto mark_critical_path(WeightedAdjListT       &graph,
+                        const AdjListT         &transposed_graph,
                         std::vector<NodeColor> &vertex_colors,
                         const std::vector<std::optional<uint64_t>> &max_costs) {
 
-    std::optional<uint64_t> max_total_cost  = std::nullopt;
-    std::optional<uint64_t> max_cost_vertex = std::nullopt;
+    std::optional<uint64_t> max_total_cost = std::nullopt;
+    std::vector<uint64_t>   max_cost_vertices{};
     for (uint64_t vertex = 0; vertex < max_costs.size(); ++vertex) {
         const auto vertex_max_cost_opt = max_costs.at(vertex);
         if (!vertex_max_cost_opt.has_value()) {
@@ -504,13 +518,16 @@ auto mark_critical_path(const AdjListT         &transposed_graph,
         }
         const auto vertex_max_cost = vertex_max_cost_opt.value();
         if (max_total_cost < vertex_max_cost) {
-            max_total_cost  = vertex_max_cost;
-            max_cost_vertex = vertex;
+            max_total_cost = vertex_max_cost;
+            max_cost_vertices.clear();
+            max_cost_vertices.push_back(vertex);
+        } else if (max_total_cost == vertex_max_cost) {
+            max_cost_vertices.push_back(vertex);
         }
     }
 
-    if (max_total_cost.has_value()) {
-        color_red(max_cost_vertex.value(), transposed_graph, vertex_colors);
+    for (const auto max_cost_vertex : max_cost_vertices) {
+        color_red(max_cost_vertex, graph, transposed_graph, vertex_colors);
     }
 }
 
@@ -538,11 +555,10 @@ auto graph2dotlang(const WeightedAdjListT                          &graph,
 
     for (uint64_t parent = 0; parent < graph.size(); ++parent) {
         const auto &parent_name = index2name.at(parent);
-        for (const auto [child, _] : graph.at(parent)) {
+        for (const auto [child, _, edge_color] : graph.at(parent)) {
             const auto &child_name  = index2name.at(child);
             res                    += parent_name + " -> " + child_name;
-            if (colors.at(parent) == NodeColor::RED &&
-                colors.at(child) == NodeColor::RED) {
+            if (edge_color == NodeColor::RED) {
                 res += " [color = red]";
             } else if (colors.at(parent) == NodeColor::BLUE &&
                        colors.at(child) == NodeColor::BLUE) {
@@ -563,17 +579,17 @@ auto main(int /*argc*/, char * /*argv*/[]) -> int {
     auto &foo                                                = std::cin;
     const auto [chains, index2cost, index2name, graph_order] = parse_input(foo);
 
-    const auto graph =
-        construct_oriented_graph(chains, index2cost, graph_order);
+    auto graph = construct_oriented_graph(chains, index2cost, graph_order);
 
-    auto       res           = TarjanTraverser::build(graph);
-    auto       vertex_colors = std::get<0>(res);
-    const auto not_bases     = std::get<1>(res);
+    auto res   = TarjanTraverser::build(graph);
+    auto vertex_colors   = std::get<0>(res);
+    const auto not_bases = std::get<1>(res);
 
     const auto [max_costs, trimmed_transposed_graph] =
         DijkstraTraverser::traverse(
             graph, vertex_colors, not_bases, index2cost);
-    mark_critical_path(trimmed_transposed_graph, vertex_colors, max_costs);
+    mark_critical_path(
+        graph, trimmed_transposed_graph, vertex_colors, max_costs);
     const auto graph_repr =
         graph2dotlang(graph, vertex_colors, index2cost, index2name);
     std::cout << graph_repr << std::endl;
