@@ -475,31 +475,30 @@ class Parser {
         scope_variables_.clear();
 
         consume({TokenType::L_PARENTHESIS});
-        while (!match({TokenType::R_PARENTHESIS})) {
-            const auto &argument = peek();
-            assert(argument.value.has_value());
-            const auto &argument_name = argument.value.value();
-
-            const auto  found         = scope_variables_.find(argument_name);
-            if (found != scope_variables_.end()) {
-                throw std::runtime_error(
-                    "Found redeclaration of formal argument");
-            }
-            scope_variables_.insert(argument_name);
-            ++scope_variables_count_;
+        if (match({TokenType::R_PARENTHESIS})) {
             advance();
-            if (!match({TokenType::COMMA})) {
-                break;
-            }
+            return;
+        }
+        formal_arg();
+        while (match({TokenType::COMMA})) {
             advance();
-            if (!match({TokenType::IDENTIFIER})) {
-                const auto &next = peek();
-                throw std::runtime_error(
-                    "Unexpected token type: " + toString(next.type) +
-                    ". Expected " + toString(TokenType::IDENTIFIER));
-            }
+            formal_arg();
         }
         consume({TokenType::R_PARENTHESIS});
+    }
+
+    auto formal_arg() -> void {
+        const auto &argument = peek();
+        consume({TokenType::IDENTIFIER});
+        assert(argument.value.has_value());
+
+        const auto &argument_name = argument.value.value();
+        const auto  found         = scope_variables_.find(argument_name);
+        if (found != scope_variables_.end()) {
+            throw std::runtime_error("Found redeclaration of formal argument");
+        }
+        scope_variables_.insert(argument_name);
+        ++scope_variables_count_;
     }
 
     auto expression() -> void {
