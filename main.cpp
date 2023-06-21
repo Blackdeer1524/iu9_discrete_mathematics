@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <assert.h>
+#include <cstdint>
+#include <fstream>
 #include <initializer_list>
 #include <iostream>
 #include <optional>
@@ -645,7 +647,7 @@ auto produce_graph(const std::string &program) -> std::
             if (alread_defined.at(dependent)) {
                 for (const auto &[variable, index] : var2index) {
                     if (index == dependent) {
-                        throw CycleError("Found redefinition of " + variable);
+                        throw SyntaxError("Found redefinition of " + variable);
                     }
                 }
                 throw std::runtime_error("Unreachable");
@@ -693,6 +695,14 @@ class DFSTraverser {
                 traverser.visit_vertex(i);
             }
         }
+
+        for (uint64_t i = 0; i < graph.size(); ++i) {
+            if (traverser.visited_.at(i) == VertexColor::WHITE) {
+                throw CycleError("Found unvisited vertices after DFS => there "
+                                 "is a strondly connected component => cycle");
+            }
+        }
+
         return traverser.sorted_vertices_;
     }
 
@@ -737,7 +747,7 @@ class DFSTraverser {
 
 auto main() -> int {
     // std::ifstream foo;
-    // foo.open("/home/blackdeer/projects/discrete/txt_tests/main_input0.txt");
+    // foo.open("/home/blackdeer/projects/discrete/txt_tests/main_input11.txt");
     auto       &foo = std::cin;
 
     std::string program;
