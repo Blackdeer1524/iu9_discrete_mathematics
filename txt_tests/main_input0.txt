@@ -1,0 +1,34 @@
+7
+3
+6
+4 6 5
+4 5 5
+5 0 1
+2 6 5
+5 3 1
+6 6 3
+4 1 5
+w d z
+a c a
+w z c
+w d z
+w z c
+x r q
+f a c
+7
+3
+3
+1 3 5
+5 4 2
+6 5 5
+6 2 5
+6 3 5
+3 3 4
+5 0 2
+w d z
+w z c
+a c a
+f a c
+w d z
+x r q
+w z c
