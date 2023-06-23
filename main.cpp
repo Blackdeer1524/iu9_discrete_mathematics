@@ -389,13 +389,14 @@ auto main() -> int {
 
     in >> n >> m >> q0;
 
-    transitions_table delta(n, State(m));
+    transitions_table      delta(n, State(m));
+    std::vector<SetItem *> set_items_pool(n);
     for (uint64_t i = 0; i < n; ++i) {
+        delta.at(i).equivalence_class = set_items_pool.at(i) = new SetItem;
         for (uint64_t j = 0; j < m; ++j) {
             uint64_t next_state;
             in >> next_state;
             delta.at(i).transitions.at(j) = next_state;
-            delta.at(i).equivalence_class = new SetItem;
         }
     }
 
@@ -414,4 +415,12 @@ auto main() -> int {
     const auto      canonical = DFSTraverser::traverse(minimized);
 
     print_automator(canonical);
+
+    for (uint64_t i = 0; i < n; ++i) {
+        delete set_items_pool.at(i);
+    }
+
+    for (uint64_t i = 0; i < minimized.states_count; ++i) {
+        delete minimized.delta.at(i).equivalence_class;
+    }
 }
