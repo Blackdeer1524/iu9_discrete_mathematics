@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <cstdint>
 #include <fstream>
-#include <gtest/internal/gtest-port.h>
+#include <iostream>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -37,12 +37,6 @@ class SetItem {
         if (x->rank == y->rank) {
             ++y->rank;
         }
-    }
-};
-
-struct PointedObjEq {
-    auto operator()(const SetItem *lhs, const SetItem *rhs) const -> bool {
-        return lhs == rhs;
     }
 };
 
@@ -186,19 +180,6 @@ auto split(const Automaton &A, std::vector<SetItem *> &state2eq_class)
     }
     return {eq_classes_count, k_plus_one_equivalent_clases};
 }
-
-struct PointerHash {
-    auto operator()(const SetItem *ptr) const -> uint64_t {
-        auto res = reinterpret_cast<uint64_t>(ptr);
-        return res;
-    }
-};
-
-struct PointerEqual {
-    auto operator()(const SetItem *lhs, const SetItem *rhs) const -> bool {
-        return lhs == rhs;
-    }
-};
 
 auto aufenkamp_hohn(const Automaton &A) -> Automaton {
     auto [k_equivalent_count, state_i2k_eq_class] = split1(A);

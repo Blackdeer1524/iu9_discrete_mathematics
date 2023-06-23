@@ -1,0 +1,24 @@
+
+10
+26
+3
+5 8 0 8 0 2 8 1 7 9 4 6 0 1 0 7 8 0 0 3 0 1 8 3 3 9
+0 4 5 8 6 0 2 6 0 7 7 2 8 7 0 1 6 7 1 3 2 0 4 5 0 4
+6 7 8 4 7 1 0 1 1 5 7 7 7 0 0 5 8 3 7 1 7 7 2 9 7 0
+8 8 7 0 0 5 0 8 7 0 2 1 8 3 4 1 5 5 1 0 8 6 1 1 9 4
+1 2 1 1 8 1 7 3 6 6 5 0 2 7 8 5 5 1 9 1 6 6 1 7 3 2
+8 8 7 0 0 3 0 8 7 0 2 1 8 5 4 1 3 5 1 0 8 6 1 1 6 4
+1 2 1 1 8 1 7 5 6 4 3 0 2 7 8 3 3 1 4 1 9 6 1 7 3 2
+0 2 4 7 0 7 3 1 3 4 7 0 7 4 7 2 8 7 8 2 1 4 2 8 2 0
+1 7 5 4 1 0 7 8 1 7 8 8 2 4 0 2 8 4 7 1 8 4 1 0 1 5
+1 2 1 1 8 1 7 5 6 9 3 0 2 7 8 5 5 1 6 1 9 6 1 7 3 2
+nc nm pu an pi jl zt th ks nt vb de ew an wd kw ck iv vz pi xm zr pu bh lw zr
+ck oe nc oe zr ov bh an mb iv zr qw jm ik qn ba bh de by nd ba nf wb vb vz zk
+wb in vx uz on oe za zd in qw vp lw th iv zk vx vb nt wd qw ik jl mb zk wb jm
+on zk nd qn km kw nd ik an ck wd pi uz pu ck vx xe on mb pu ew za uz qw by nt
+nc km ob lw pi zr nm xm zd nf ob jl qw wd oe vx nd kw in za gw nk za qw nf vb
+on zk nd qn km kw nd ik an ck wd pi uz pu ck vx xe on mb pu ew za uz qw by nt
+nc km ob lw pi zr nm xm zd nf ob jl qw wd oe vx nd kw in za gw nk za qw nf vb
+vx zk vb pi ob jl nt gw kw rr nc ks za qn vb jm zk jm wd rr ck wd pi xe ov ck
+vb ba mb jl ck xe ew pi nm ks zr nm pi vz vx nf nc nc jl lz in kw oe jl ba rr
+nc km ob lw pi zr nm xm zd nf ob jl qw wd oe vx nd kw in za gw nk za qw nf vb

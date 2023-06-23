@@ -1,0 +1,15 @@
+digraph {
+    rankdir = LR
+    0 -> 1 [label = "a(x)"]
+    0 -> 1 [label = "b(x)"]
+    0 -> 2 [label = "c(y)"]
+    1 -> 2 [label = "a(y)"]
+    1 -> 3 [label = "b(x)"]
+    1 -> 1 [label = "c(x)"]
+    2 -> 2 [label = "a(x)"]
+    2 -> 0 [label = "b(x)"]
+    2 -> 3 [label = "c(y)"]
+    3 -> 3 [label = "a(x)"]
+    3 -> 3 [label = "b(y)"]
+    3 -> 2 [label = "c(x)"]
+}
