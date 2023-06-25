@@ -2,19 +2,12 @@
 #include <cstdint>
 #include <iostream>
 #include <istream>
-#include <iterator>
-#include <math.h>
-#include <numeric>
 #include <optional>
-#include <sstream>
 #include <stack>
 #include <string>
-#include <string_view>
-#include <sys/types.h>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 constexpr static uint64_t LAMBDA_INDEX = 0;
@@ -68,19 +61,32 @@ class DFSTraverser {
     }
 };
 
-template <typename T>
-auto vect2string(const std::vector<T> &states, const std::string &sep = " ")
-    -> std::string {
+auto vect2string(const std::vector<uint64_t> &states,
+                 const std::string           &sep = " ") -> std::string {
     if (states.empty()) {
         return "";
     }
 
-    std::stringstream ss;
+    std::string res;
     for (uint64_t i = 0; i < states.size() - 1; ++i) {
-        ss << states.at(i) << sep;
+        res += std::to_string(states.at(i)) + sep;
     }
-    ss << states.at(states.size() - 1);
-    return ss.str();
+    res += std::to_string(states.at(states.size() - 1));
+    return res;
+}
+
+auto vect2string(const std::vector<std::string> &states,
+                 const std::string              &sep = " ") -> std::string {
+    if (states.empty()) {
+        return "";
+    }
+
+    std::string res;
+    for (uint64_t i = 0; i < states.size() - 1; ++i) {
+        res += states.at(i) + sep;
+    }
+    res += states.at(states.size() - 1);
+    return res;
 }
 
 auto det(const nondet_transitions &delta,
