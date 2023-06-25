@@ -236,7 +236,7 @@ auto main() -> int {
     for (uint64_t i = 0; i < states_count; ++i) {
         delta.at(i).resize(alphabet_size);
 
-        bool is_final;
+        int is_final;
         std::cin >> is_final;
         final.at(i) = is_final;
     }
