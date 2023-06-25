@@ -25,7 +25,7 @@ class DFSTraverser {
         reachable_.clear();
 
         fill_reachable(start);
-
+        std::sort(reachable_.begin(), reachable_.end());
         return reachable_;
     }
 
@@ -34,9 +34,12 @@ class DFSTraverser {
         reachable_.clear();
 
         for (const uint64_t state : start) {
-            fill_reachable(state);
+            if (!visited_.at(state)) {
+                fill_reachable(state);
+            }
         }
-
+        
+        std::sort(reachable_.begin(), reachable_.end());
         return reachable_;
     }
 
@@ -132,7 +135,6 @@ auto det(const nondet_transitions &delta,
             }
             std::vector<uint64_t> next_states =
                 traverser.closure(next_states_candidates);
-            std::sort(next_states.begin(), next_states.end());
 
             const auto next_state_label = vect2string(next_states);
             uint64_t   next_state_index;
