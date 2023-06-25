@@ -38,7 +38,7 @@ class DFSTraverser {
                 fill_reachable(state);
             }
         }
-        
+
         std::sort(reachable_.begin(), reachable_.end());
         return reachable_;
     }

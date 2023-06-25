@@ -1,0 +1,22 @@
+11
+15
+
+0 1 lambda
+0 2 lambda
+0 3 lambda
+1 4 lambda
+1 5 lambda
+2 6 lambda
+2 7 lambda
+3 8 lambda
+3 9 lambda
+4 5 lambda
+5 6 lambda
+6 7 lambda
+7 8 lambda
+8 9 lambda
+9 10 a
+
+0 0 0 0 0 0 0 0 0 0 1
+
+0
