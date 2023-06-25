@@ -1,12 +1,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
-#include <istream>
 #include <optional>
 #include <stack>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -205,10 +203,9 @@ auto print_automaton(
 }
 
 auto main() -> int {
-    std::istream &in = std::cin;
-    uint64_t      states_count;
-    uint64_t      transitions_count;
-    in >> states_count >> transitions_count;
+    uint64_t states_count;
+    uint64_t transitions_count;
+    std::cin >> states_count >> transitions_count;
 
     std::vector<std::vector<std::vector<uint64_t>>> delta(
         states_count, std::vector<std::vector<uint64_t>>(1));
@@ -221,7 +218,7 @@ auto main() -> int {
         uint64_t    from;
         uint64_t    to;
         std::string transition_signal;
-        in >> from >> to >> transition_signal;
+        std::cin >> from >> to >> transition_signal;
         uint64_t transition_signal_index;
         if (const auto found = symbol2index.find(transition_signal);
             found == symbol2index.end()) {
@@ -240,12 +237,12 @@ auto main() -> int {
         delta.at(i).resize(alphabet_size);
 
         bool is_final;
-        in >> is_final;
+        std::cin >> is_final;
         final.at(i) = is_final;
     }
 
     uint64_t q0;
-    in >> q0;
+    std::cin >> q0;
 
     std::vector<std::string> alphabet(symbol2index.size());
     for (const auto &[symbol, index] : symbol2index) {
