@@ -4,6 +4,6 @@
 !go.mod
 !README.md
 !main.cpp
-!main.go
+!*.go
 !CMakeLists.txt
 !txt_tests/*

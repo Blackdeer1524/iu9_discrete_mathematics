@@ -20,7 +20,6 @@ const (
 	DIV                    // Знак /
 	LPAREN                 // Левая круглая скобка
 	RPAREN                 // Правая круглая скобка
-	END
 )
 
 type Lexem struct {
@@ -95,12 +94,12 @@ func lexer(expr string, lexems chan Lexem) {
 				lexems <- Lexem{Tag: VAR, Image: expr[start:index]}
 			} else {
 				lexems <- Lexem{Tag: ERROR}
+				close(lexems)
 				return
 			}
 
 		}
 	}
-	lexems <- Lexem{Tag: END}
 	close(lexems)
 }
 
@@ -199,9 +198,9 @@ func BuildParser(lexemsStream chan Lexem, varValues []int) Parser {
 
 func (parser *Parser) Parse() (Computable, error) {
 	res, err := parser.expr()
-	if !parser.consume(END) {
-		return nil, fmt.Errorf("expected no tokens")
-	}
+	// if !parser.consume(END) {
+	// 	return nil, fmt.Errorf("expected no tokens")
+	// }
 	return res, err
 }
 
@@ -367,7 +366,6 @@ func main() {
 			break
 		}
 	}
-
 	lexemsStream := make(chan Lexem)
 	go lexer(expr, lexemsStream)
 	parser := BuildParser(lexemsStream, varValues)
