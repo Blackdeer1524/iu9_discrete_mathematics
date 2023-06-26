@@ -2,6 +2,7 @@
 !*/
 !.gitignore
 !go.mod
+!main.go
 !README.md
 !main.cpp
 !CMakeLists.txt
