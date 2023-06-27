@@ -340,12 +340,10 @@ func (parser *Parser) primary() (Computable, error) {
 }
 
 func main() {
-	// file, _ := os.Open(
-	// 	"/home/blackdeer/projects/discrete/txt_tests/main_input3.txt",
-	// )
-
+	expr := os.Args[1]
 	reader := bufio.NewReader(os.Stdin)
-	expr, _ := reader.ReadString('\n')
+	// для локальных тестов
+	// expr, _ := reader.ReadString('\n')
 	var varValues []int
 	for {
 		strNums, err := reader.ReadString('\n')
@@ -372,7 +370,7 @@ func main() {
 
 	ast, err := parser.Parse()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("error")
 		return
 	}
 	res := ast.Compute()
