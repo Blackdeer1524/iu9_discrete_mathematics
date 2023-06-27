@@ -94,8 +94,7 @@ func lexer(expr string, lexems chan Lexem) {
 				lexems <- Lexem{Tag: VAR, Image: expr[start:index]}
 			} else {
 				lexems <- Lexem{Tag: ERROR}
-				close(lexems)
-				return
+				index++
 			}
 
 		}
@@ -198,22 +197,31 @@ func BuildParser(lexemsStream chan Lexem, varValues []int) Parser {
 
 func (parser *Parser) Parse() (Computable, error) {
 	res, err := parser.expr()
-	// if !parser.consume(END) {
-	// 	return nil, fmt.Errorf("expected no tokens")
-	// }
+
+	if _, isStreamOpen := parser.peek(); isStreamOpen || parser.isBufferFull {
+		return nil, fmt.Errorf("expected no tokens")
+	}
+
 	return res, err
 }
 
-func (parser *Parser) peek() Lexem {
+func (parser *Parser) peek() (Lexem, bool) {
+	isStreamOpen := true
 	if !parser.isBufferFull {
-		parser.isBufferFull = true
-		parser.buffer = <-parser.lexemsStream
+		parser.buffer, isStreamOpen = <-parser.lexemsStream
+		if isStreamOpen {
+			parser.isBufferFull = true
+		}
 	}
-	return parser.buffer
+	return parser.buffer, isStreamOpen
 }
 
 func (parser *Parser) match(expectedLexemTypes Tag) bool {
-	next := parser.peek()
+	next, isStreamOpen := parser.peek()
+	if !isStreamOpen {
+		return false
+	}
+
 	return (next.Tag & expectedLexemTypes) > 0
 }
 
@@ -228,7 +236,7 @@ func (parser *Parser) expr() (Computable, error) {
 	}
 
 	for parser.match(PLUS | MINUS) {
-		op := parser.peek().Tag
+		op, _ := parser.peek()
 		parser.advance()
 
 		var rightNode Computable
@@ -237,7 +245,7 @@ func (parser *Parser) expr() (Computable, error) {
 			return nil, err
 		}
 
-		if op == PLUS {
+		if op.Tag == PLUS {
 			node = &BinPlusNode{left: node, right: rightNode}
 		} else {
 			node = &BinMinusNode{left: node, right: rightNode}
@@ -260,7 +268,7 @@ func (parser *Parser) factor() (Computable, error) {
 		return nil, err
 	}
 	for parser.match(MUL | DIV) {
-		op := parser.peek().Tag
+		op, _ := parser.peek()
 		parser.advance()
 
 		var rightNode Computable
@@ -269,7 +277,7 @@ func (parser *Parser) factor() (Computable, error) {
 			return nil, err
 		}
 
-		if op == MUL {
+		if op.Tag == MUL {
 			node = &MultiplicationNode{left: node, right: rightNode}
 		} else {
 			node = &DivisionNode{left: node, right: rightNode}
@@ -297,22 +305,22 @@ func (parser *Parser) unary() (Computable, error) {
 
 func (parser *Parser) primary() (Computable, error) {
 	if parser.match(NUMBER) {
-		number := parser.peek().Image
+		number, _ := parser.peek()
 		parser.advance()
 
-		if res, err := strconv.Atoi(number); err == nil {
+		if res, err := strconv.Atoi(number.Image); err == nil {
 			return &NumberNodeNode{res}, nil
 		}
 
 		return nil, fmt.Errorf("couldn't convert number token value to int")
 	}
 	if parser.match(VAR) {
-		variableName := parser.peek().Image
+		variableName, _ := parser.peek()
 		parser.advance()
 
 		var node Computable
-		if varIndex, ok := parser.varName2Index[variableName]; !ok {
-			parser.varName2Index[variableName] = parser.seenVariablesCount
+		if varIndex, ok := parser.varName2Index[variableName.Image]; !ok {
+			parser.varName2Index[variableName.Image] = parser.seenVariablesCount
 			varValue := parser.varValues[parser.seenVariablesCount]
 			parser.seenVariablesCount++
 
@@ -341,6 +349,13 @@ func (parser *Parser) primary() (Computable, error) {
 
 func main() {
 	expr := os.Args[1]
+
+	// file, err := os.Open("/home/blackdeer/projects/discrete/txt_tests/main_input0.txt")
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	// reader := bufio.NewReader(file)
+
 	reader := bufio.NewReader(os.Stdin)
 	// для локальных тестов
 	// expr, _ := reader.ReadString('\n')
@@ -372,6 +387,7 @@ func main() {
 	if err != nil {
 		fmt.Println("error")
 		return
+		// panic(err.Error())
 	}
 	res := ast.Compute()
 	fmt.Println(res)
